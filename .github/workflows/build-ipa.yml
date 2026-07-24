@@ -292,8 +292,8 @@ jobs:
           
           APP_PATH="build/CFNB.xcarchive/Products/Applications/CFNB.app"
           if [ ! -d "$APP_PATH" ]; then
-            echo "Looking for app in xcarchive..."
-            ls -la build/CFNB.xcarchive/
+            echo "Contents of xcarchive:"
+            find build/CFNB.xcarchive -type f | head -30
             echo "ERROR: CFNB.app not found in xcarchive!"
             exit 1
           fi
@@ -301,30 +301,24 @@ jobs:
           mkdir -p build/Payload
           cp -r "$APP_PATH" build/Payload/
           
-          # Create exportOptions.plist using python3 (avoids YAML/heredoc issues with XML tags)
-          python3 -c "
-          import plistlib, io
-          opts = {'method': 'ad-hoc', 'signingStyle': 'manual', 'stripSwiftSymbols': True, 'uploadSymbols': False, 'teamID': ''}
-          with open('build/exportOptions.plist', 'wb') as f:
-              f.write(plistlib.dump(opts, f))
-          "
-          
-          echo "Creating zip-based IPA at Payload level..."
+          echo "Creating IPA via zip..."
           cd build
           zip -r CFNB.ipa Payload/
           cd ..
           
           if [ -f "build/CFNB.ipa" ]; then
-            echo "IPA created successfully!"
+            echo "IPA created successfully at build/CFNB.ipa"
             ls -lh build/CFNB.ipa
           else
-            echo "WARNING: Check build structure"
+            echo "ERROR: IPA file not found after zip"
+            find build -name "*.ipa" 2>/dev/null
             ls -la build/
+            exit 1
           fi
       
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: CFNB-iPA-Build
-          path: build/IPA/CFNB.ipa
+          path: build/CFNB.ipa
           retention-days: 30
