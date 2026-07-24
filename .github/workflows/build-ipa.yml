@@ -107,14 +107,13 @@ jobs:
           	objectVersion = 54;
           	objects = {
           
-          /* Begin PBXBuildFile section */
+/* Begin PBXBuildFile section */
           		A1000001 /* CFNB.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000101; };
-          		A1000002 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A1000102; };
-          /* End PBXBuildFile section */
+/* End PBXBuildFile section */
           
           /* Begin PBXFileReference section */
           		A1000101 /* CFNB.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CFNB.swift; sourceTree = "<group>"; };
-          		A1000102 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+          		A1000102 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "CFNB/Info.plist"; sourceTree = "<group>"; };
           		A1000103 /* CFNB.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CFNB.app; sourceTree = BUILT_PRODUCTS_DIR; };
           /* End PBXFileReference section */
           
@@ -125,6 +124,7 @@ jobs:
           				A1000101,
           				A1000102,
           			);
+          			path = "";
           			sourceTree = "<group>";
           		};
           /* End PBXGroup section */
@@ -170,7 +170,7 @@ jobs:
           		A1000402 /* Resources */ = {
           			isa = PBXResourcesBuildPhase;
           			buildActionMask = 2147483647;
-          			files = ( A1000002, );
+          			files = ( );
           			runOnlyForDeploymentPostprocessing = 0;
           		};
           /* End PBXResourcesBuildPhase section */
