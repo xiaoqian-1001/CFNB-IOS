@@ -280,13 +280,32 @@ jobs:
             OBJROOT=$GITHUB_WORKSPACE/build/OBJ \
             BUILD_DIR=$GITHUB_WORKSPACE/build
       
-      - name: Export IPA
-        run: |
-          cd ${{ github.workspace }}
-          xcodebuild -exportArchive \
-            -archivePath build/CFNB.xcarchive \
-            -exportPath build/IPA \
-            -exportOptionsPlist exportOptions.plist
+       - name: Export IPA
+         run: |
+           cd ${{ github.workspace }}
+           
+           # Create export options for ad-hoc / package method (no signing needed)
+           cat > exportOptions.plist << 'EXPEOF'
+           <?xml version="1.0" encoding="UTF-8"?>
+           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+           <plist version="1.0">
+           <dict>
+               <key>method</key>
+               <string>package</string>
+               <key>signingStyle</key>
+               <string>automatic</string>
+               <key>stripSwiftSymbols</key>
+               <true/>
+               <key>uploadSymbols</key>
+               <false/>
+           </dict>
+           </plist>
+           EXPEOF
+           
+           xcodebuild -exportArchive \
+             -archivePath build/CFNB.xcarchive \
+             -exportPath build/IPA \
+             -exportOptionsPlist exportOptions.plist
       
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
