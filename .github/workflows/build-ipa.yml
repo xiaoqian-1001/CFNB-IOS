@@ -21,40 +21,81 @@ jobs:
         with:
           go-version: '1.23'
       
-      - name: Create Xcode project template
-        run: |
-          cd ${{ github.workspace }}
-          
-          # Create a basic Swift/iOS app structure
-          xcrun xcodebuild -create-project \
-            -projectName CFNB \
-            -organizationIdentifier com.cfnb \
-            -scheme CFNB \
-            -destinationPlatform iphoneos \
-            -projectPath CFNB.xcodeproj
-      
-      - name: Set up Go and build iOS binary
+      - name: Build Go binary for iOS/arm64
         working-directory: ${{ github.workspace }}/cfnb-go
         run: |
           chmod +x ../build_iphoneos.sh
           ../build_iphoneos.sh
       
-      - name: Replace template files with Go content
+      - name: Create Xcode project
         run: |
           cd ${{ github.workspace }}
           
-          # Copy the built binary to the app bundle
+          # Create app bundle directory
+          mkdir -p CFNB
+      
+          # Copy the built binary
           cp cfnb-go/cfnb CFNB/CFNB
-          
-          # Update Info.plist to point to our binary
-          /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable CFNB" \
-            CFNB/Info.plist
+          chmod +x CFNB/CFNB
+      
+          # Create Info.plist for the app
+          cat > CFNB/Info.plist << 'EOFINFO'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key>
+              <string>CFNB</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.cfnb.app</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>CFBundleExecutable</key>
+              <string>CFNB</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleSupportedPlatforms</key>
+              <array><string>iPhoneOS</string></array>
+              <key>MinimumOSVersion</key>
+              <string>12.0</string>
+          </dict>
+          </plist>
+          EOFINFO
+      
+          # Create AppDelegate.swift
+          cat > CFNB/AppDelegate.swift << 'EOFSWIFT'
+          import UIKit
+          @main
+          class AppDelegate: UIResponder, UIApplicationDelegate {
+              var window: UIWindow?
+              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  window = UIWindow(frame: UIScreen.main.bounds)
+                  let vc = UIViewController()
+                  vc.view.backgroundColor = .black
+                  let label = UILabel()
+                  label.text = "CFNB - Cloudflare IP Optimizer"
+                  label.textAlignment = .center
+                  label.textColor = .white
+                  label.frame = CGRect(x: 50, y: 200, width: 300, height: 50)
+                  vc.view.addSubview(label)
+                  window?.rootViewController = vc
+                  window?.makeKeyAndVisible()
+                  return true
+              }
+          }
+          EOFSWIFT
+      
+          echo "App bundle created at CFNB/"
+          ls -la CFNB/
       
       - name: Archive
         run: |
           cd ${{ github.workspace }}
           xcodebuild archive \
             -scheme CFNB \
+            -destination generic/platform=iOS \
             -configuration Release \
             -archivePath build/CFNB.xcarchive \
             CODE_SIGN_IDENTITY="" \
