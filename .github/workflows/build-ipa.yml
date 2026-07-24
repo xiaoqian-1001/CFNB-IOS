@@ -36,8 +36,8 @@ jobs:
       - name: Set up Go and build iOS binary
         working-directory: ${{ github.workspace }}/cfnb-go
         run: |
-          chmod +x build_iphoneos.sh
-          ./build_iphoneos.sh
+          chmod +x ../build_iphoneos.sh
+          ../build_iphoneos.sh
       
       - name: Replace template files with Go content
         run: |
