@@ -59,7 +59,7 @@ jobs:
           cp cfnb-go/cfnb CFNB/CFNB
           chmod +x CFNB/CFNB
           
-          # Create Info.plist
+          # Create Info.plist inside the CFNB directory (matching INFOPLIST_FILE setting)
           cat > CFNB/Info.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -200,7 +200,7 @@ jobs:
           				CODE_SIGN_STYLE = Manual;
           				CURRENT_PROJECT_VERSION = 1;
           				DEVELOPMENT_TEAM = "";
-          				GENERATE_INFOPLIST_FILE = YES;
+          				GENERATE_INFOPLIST_FILE = NO;
           				INFOPLIST_FILE = CFNB/Info.plist;
           				INFOPLIST_KEY_UIApplicationSupportsMultipleScenes = NO;
           				LINKER_DISPLAYS_MANGLED_NAMES = NO;
