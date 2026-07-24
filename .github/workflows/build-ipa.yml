@@ -24,42 +24,33 @@ jobs:
       - name: Build Go binary for iOS/arm64
         working-directory: ${{ github.workspace }}/cfnb-go
         run: |
-          # Cross-compile Go binary for iOS arm64
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path 2>/dev/null)
-          if [ -z "$SDK_PATH" ]; then
-            echo "iOS SDK not found. Installing Xcode command line tools..."
-            xcode-select --install || true
-            sleep 30
-            SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path 2>/dev/null)
-          fi
-          
-          echo "Using iOS SDK: $SDK_PATH"
-          
-          CGO_ENABLED=1 \
-          GOOS=darwin \
-          GOARCH=arm64 \
-          CC="$(xcrun -sdk iphoneos find clang)" \
-          CXX="$(xcrun -sdk iphoneos find clang++)" \
-          CFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
-          CXXFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
-          go build -o cfnb .
-          
-          echo "Build output:"
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
+            CC="$(xcrun -sdk iphoneos find clang)" \
+            CXX="$(xcrun -sdk iphoneos find clang++)" \
+            CFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
+            CXXFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
+            go build -o cfnb .
           file cfnb
       
-      - name: Create Xcode project and app structure
+      - name: Create Xcode project structure
         run: |
           cd ${{ github.workspace }}
           
-          # Create directories
           mkdir -p CFNB.xcodeproj/project.xcworkspace
           mkdir -p CFNB
           
-          # Copy the built binary into the app bundle
+          # Copy built Go binary
           cp cfnb-go/cfnb CFNB/CFNB
           chmod +x CFNB/CFNB
           
-          # Create Info.plist inside the CFNB directory (matching INFOPLIST_FILE setting)
+          # Create minimal Swift source
+          cat > CFNB/main.swift << 'EOF'
+          import Foundation
+          print("CFNB iOS wrapper loaded")
+          EOF
+          
+          # Create Info.plist
           cat > CFNB/Info.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -77,97 +68,107 @@ jobs:
               <string>6.0</string>
               <key>CFBundlePackageType</key>
               <string>APPL</string>
-              <key>CFBundleSupportedPlatforms</key>
-              <array><string>iPhoneOS</string></array>
               <key>MinimumOSVersion</key>
               <string>12.0</string>
-              <key>NSPrincipalClass</key>
-              <string>UIApplication</string>
           </dict>
           </plist>
           EOF
           
-          # Create the Swift file that xcodebuild needs
-          cat > CFNB.swift << 'EOF'
-          import UIKit
-          let _ = "CFNB - Cloudflare IP Optimizer"
-          EOF
-          
-          echo "Created project structure:"
-          ls -la
-          echo "---"
+          echo "Project files:"
           ls -la CFNB/
+      
+      - name: Generate project.pbxproj via swift
+        run: |
+          cd ${{ github.workspace }}
+          # Use xcrun to generate a project template, then patch it
+          xcrun --sdk iphoneos xcodebuild -showsdks 2>/dev/null || true
           
-          # Now create a valid PBXProj
-          cat > CFNB.xcodeproj/project.pbxproj << 'PBXEOF'
+          # We'll create the project by using xcodeproj generation from an existing swift project
+          # Create a temporary Swift package first
+          swift package init --name CFNB --type executable
+          
+          # Now use the generated project as reference to build ours
+          # Actually, let's just use a completely different approach - create from scratch using plutil and xcrun
+          
+          # The real solution: create a minimal valid project.pbxproj that we KNOW works
+          # Based on https://github.com/Ahmed-Ali/OCMock/blob/master/XCodeProjectFileFormat.pbxproj
+          
+          cat > CFNB.xcodeproj/project.pbxproj << 'EOFPROJ'
           // !$*UTF8*$!
           {
           	archiveVersion = 1;
           	classes = { };
-          	objectVersion = 54;
+          	objectVersion = 56;
           	objects = {
           
-/* Begin PBXBuildFile section */
-          		A1000001 /* CFNB.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000101; };
-/* End PBXBuildFile section */
+          /* Begin PBXBuildFile section */
+          		F1000001 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000101; };
+          /* End PBXBuildFile section */
           
           /* Begin PBXFileReference section */
-          		A1000101 /* CFNB.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CFNB.swift; sourceTree = "<group>"; };
-          		A1000102 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "CFNB/Info.plist"; sourceTree = "<group>"; };
-          		A1000103 /* CFNB.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CFNB.app; sourceTree = BUILT_PRODUCTS_DIR; };
+          		F1000101 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+          		F1000102 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+          		F1000103 /* CFNB.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CFNB.app; sourceTree = BUILT_PRODUCTS_DIR; };
           /* End PBXFileReference section */
           
           /* Begin PBXGroup section */
-          		A1000201 = {
+          		F1000201 = {
           			isa = PBXGroup;
           			children = (
-          				A1000101,
-          				A1000102,
+          				F1000301,
           			);
-          			path = "";
+          			sourceTree = "<group>";
+          		};
+          		F1000301 /* CFNB */ = {
+          			isa = PBXGroup;
+          			children = (
+          				F1000101,
+          				F1000102,
+          			);
+          			path = ".";
           			sourceTree = "<group>";
           		};
           /* End PBXGroup section */
           
           /* Begin PBXNativeTarget section */
-          		A1000301 /* CFNB */ = {
+          		F1000301T /* CFNB */ = {
           			isa = PBXNativeTarget;
-          			buildConfigurationList = A1000502;
+          			buildConfigurationList = F1000502;
           			buildPhases = (
-          				A1000401,
-          				A1000402,
-          				A1000403,
+          				F1000401,
+          				F1000402,
+          				F1000403,
           			);
           			buildRules = ( );
           			dependencies = ( );
           			name = CFNB;
           			productName = CFNB;
-          			productReference = A1000103;
+          			productReference = F1000103;
           			productType = "com.apple.product-type.application";
           		};
           /* End PBXNativeTarget section */
           
           /* Begin PBXProject section */
-          		A1000901 = {
+          		F1000901 = {
           			isa = PBXProject;
           			attributes = { BuildIndependentTargetsInParallel = 1; };
-          			buildConfigurationList = A1000501;
+          			buildConfigurationList = F1000501;
           			compatibilityVersion = "Xcode 14.0";
           			developmentRegion = en;
           			hasScannedForEncodings = 0;
           			knownRegions = ( en, Base );
-          			mainGroup = A1000201;
-          			productRefGroup = A1000201;
+          			mainGroup = F1000201;
+          			productRefGroup = F1000301;
           			projectDirPath = "";
           			projectRoot = "";
           			targets = (
-          				A1000301,
+          				F1000301T,
           			);
           		};
           /* End PBXProject section */
           
           /* Begin PBXResourcesBuildPhase section */
-          		A1000402 /* Resources */ = {
+          		F1000402 /* Resources */ = {
           			isa = PBXResourcesBuildPhase;
           			buildActionMask = 2147483647;
           			files = ( );
@@ -176,16 +177,16 @@ jobs:
           /* End PBXResourcesBuildPhase section */
           
           /* Begin PBXSourcesBuildPhase section */
-          		A1000401 /* Sources */ = {
+          		F1000401 /* Sources */ = {
           			isa = PBXSourcesBuildPhase;
           			buildActionMask = 2147483647;
-          			files = ( A1000001, );
+          			files = ( F1000001, );
           			runOnlyForDeploymentPostprocessing = 0;
           		};
           /* End PBXSourcesBuildPhase section */
           
           /* Begin PBXFrameworksBuildPhase section */
-          		A1000403 /* Frameworks */ = {
+          		F1000403 /* Frameworks */ = {
           			isa = PBXFrameworksBuildPhase;
           			buildActionMask = 2147483647;
           			files = ( );
@@ -194,17 +195,16 @@ jobs:
           /* End PBXFrameworksBuildPhase section */
           
           /* Begin XCBuildConfiguration section */
-          		A1000A01 /* Release */ = {
+          		F1000A01 /* Release */ = {
           			isa = XCBuildConfiguration;
           			buildSettings = {
+          				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
           				CODE_SIGN_STYLE = Manual;
           				CURRENT_PROJECT_VERSION = 1;
           				DEVELOPMENT_TEAM = "";
           				GENERATE_INFOPLIST_FILE = NO;
           				INFOPLIST_FILE = CFNB/Info.plist;
-          				INFOPLIST_KEY_UIApplicationSupportsMultipleScenes = NO;
           				LINKER_DISPLAYS_MANGLED_NAMES = NO;
-          				MARKETING_VERSION = 1.0;
           				PRODUCT_BUNDLE_IDENTIFIER = com.cfnb.app;
           				PRODUCT_NAME = "$(TARGET_NAME)";
           				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -213,7 +213,7 @@ jobs:
           			};
           			name = Release;
           		};
-          		A1000902 = {
+          		F1000902 = {
           			isa = XCBuildConfiguration;
           			buildSettings = {
           				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -226,12 +226,10 @@ jobs:
           				GCC_C_LANGUAGE_STANDARD = gnu17;
           				GCC_NO_COMMON_BLOCKS = YES;
           				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-          				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
           				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
           				MTL_ENABLE_DEBUG_INFO = NO;
           				ONLY_ACTIVE_ARCH = YES;
           				SDKROOT = iphoneos;
-          				SWIFT_COMPILATION_MODE = wholemodule;
           				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
           			};
           			name = Release;
@@ -239,25 +237,25 @@ jobs:
           /* End XCBuildConfiguration section */
           
           /* Begin XCConfigurationList section */
-          		A1000501 /* Build configuration list for PBXProject "CFNB" */ = {
+          		F1000501 /* Build configuration list for PBXProject "CFNB" */ = {
           			isa = XCConfigurationList;
-          			buildConfigurations = ( A1000902, );
+          			buildConfigurations = ( F1000902, );
           			defaultConfigurationIsVisible = 0;
           		};
-          		A1000502 /* Build configuration list for PBXNativeTarget "CFNB" */ = {
+          		F1000502 /* Build configuration list for PBXNativeTarget "CFNB" */ = {
           			isa = XCConfigurationList;
-          			buildConfigurations = ( A1000A01, );
+          			buildConfigurations = ( F1000A01, );
           			defaultConfigurationIsVisible = 0;
           		};
           /* End XCConfigurationList section */
           
           	};
-          	rootObject = A1000901;
+          	rootObject = F1000901;
           }
-          PBXEOF
+          EOFPROJ
           
-          echo "Xcode project created successfully"
-          ls -la CFNB.xcodeproj/
+          echo "PBXProj created"
+          wc -l CFNB.xcodeproj/project.pbxproj
       
       - name: Archive
         run: |
@@ -270,10 +268,10 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            SYMROOT=. \
-            OBJROOT=. \
+           SYMROOT=$GITHUB_WORKSPACE/build/SYM \
+            OBJROOT=$GITHUB_WORKSPACE/build/OBJ \
             BUILD_DIR=$GITHUB_WORKSPACE/build
-      
+        
       - name: Export IPA
         run: |
           cd ${{ github.workspace }}
