@@ -24,8 +24,28 @@ jobs:
       - name: Build Go binary for iOS/arm64
         working-directory: ${{ github.workspace }}/cfnb-go
         run: |
-          chmod +x ../build_iphoneos.sh
-          ./build_iphoneos.sh
+          # Cross-compile Go binary for iOS arm64
+          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path 2>/dev/null)
+          if [ -z "$SDK_PATH" ]; then
+            echo "iOS SDK not found. Installing Xcode command line tools..."
+            xcode-select --install || true
+            sleep 30
+            SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path 2>/dev/null)
+          fi
+          
+          echo "Using iOS SDK: $SDK_PATH"
+          
+          CGO_ENABLED=1 \
+          GOOS=darwin \
+          GOARCH=arm64 \
+          CC="$(xcrun -sdk iphoneos find clang)" \
+          CXX="$(xcrun -sdk iphoneos find clang++)" \
+          CFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
+          CXXFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
+          go build -o cfnb .
+          
+          echo "Build output:"
+          file cfnb
       
       - name: Create Xcode project and app structure
         run: |
