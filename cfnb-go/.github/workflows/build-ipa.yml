@@ -1,0 +1,77 @@
+name: Build IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-ipa:
+    name: Build IPA for CFNB
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      
+      - name: Create Xcode project template
+        run: |
+          cd ${{ github.workspace }}
+          
+          # Create a basic Swift/iOS app structure
+          xcrun xcodebuild -create-project \
+            -projectName CFNB \
+            -organizationIdentifier com.cfnb \
+            -scheme CFNB \
+            -destinationPlatform iphoneos \
+            -projectPath CFNB.xcodeproj
+      
+      - name: Set up Go and build iOS binary
+        working-directory: ${{ github.workspace }}/cfnb-go
+        run: |
+          chmod +x build_iphoneos.sh
+          ./build_iphoneos.sh
+      
+      - name: Replace template files with Go content
+        run: |
+          cd ${{ github.workspace }}
+          
+          # Copy the built binary to the app bundle
+          cp cfnb-go/cfnb CFNB/CFNB
+          
+          # Update Info.plist to point to our binary
+          /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable CFNB" \
+            CFNB/Info.plist
+      
+      - name: Archive
+        run: |
+          cd ${{ github.workspace }}
+          xcodebuild archive \
+            -scheme CFNB \
+            -configuration Release \
+            -archivePath build/CFNB.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+      
+      - name: Export IPA
+        run: |
+          cd ${{ github.workspace }}
+          xcodebuild -exportArchive \
+            -archivePath build/CFNB.xcarchive \
+            -exportPath build/IPA \
+            -exportOptionsPlist exportOptions.plist
+      
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CFNB-iPA-Build
+          path: build/IPA/CFNB.ipa
+          retention-days: 30
