@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CFNB - Cloudflare IP 优选工具</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; min-height: 100vh; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.header { text-align: center; padding: 30px 0 20px; }
+.header h1 { font-size: 28px; color: #f0f6fc; margin-bottom: 8px; }
+.header p { color: #8b949e; font-size: 14px; }
+.header .badge { display: inline-block; padding: 2px 8px; background: #238636; color: #fff; border-radius: 12px; font-size: 11px; margin-left: 8px; vertical-align: middle; }
+.controls { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+.btn { padding: 10px 24px; border: 1px solid #30363d; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all .2s; background: #21262d; color: #c9d1d9; }
+.btn:hover:not(:disabled) { background: #30363d; border-color: #8b949e; }
+.btn-primary { background: #238636; border-color: #238636; color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #2ea043; border-color: #2ea043; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.progress-bar { flex: 1; min-width: 200px; height: 6px; background: #21262d; border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, #238636, #2ea043); border-radius: 3px; transition: width .5s ease; width: 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; }
+.card-label { font-size: 12px; color: #8b949e; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; }
+.card-value { font-size: 24px; font-weight: 700; color: #f0f6fc; }
+.card-value.speed { color: #58a6ff; }
+.card-value.latency { color: #3fb950; }
+.card-value.count { color: #d29922; }
+.phase-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.phase-tag { padding: 4px 12px; border-radius: 12px; font-size: 12px; background: #21262d; border: 1px solid #30363d; color: #8b949e; }
+.phase-tag.active { background: #1f6feb22; border-color: #1f6feb; color: #58a6ff; }
+.phase-tag.done { background: #23863622; border-color: #238636; color: #3fb950; }
+.panels { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.panel { background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; }
+.panel-header { padding: 12px 16px; border-bottom: 1px solid #30363d; font-weight: 600; font-size: 14px; color: #f0f6fc; display: flex; align-items: center; justify-content: space-between; }
+.panel-body { padding: 16px; max-height: 400px; overflow-y: auto; }
+.log-line { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-size: 12px; padding: 2px 0; color: #8b949e; line-height: 1.6; word-break: break-all; }
+.log-line.info { color: #58a6ff; }
+.log-line.success { color: #3fb950; }
+.log-line.warn { color: #d29922; }
+.log-line.error { color: #f85149; }
+.table-wrap { background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; }
+.table-header { padding: 12px 16px; border-bottom: 1px solid #30363d; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.table-header input { margin-left: auto; padding: 4px 8px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #c9d1d9; font-size: 12px; width: 200px; outline: none; }
+.table-header input:focus { border-color: #58a6ff; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 8px 16px; background: #21262d; font-size: 12px; font-weight: 600; color: #8b949e; border-bottom: 1px solid #30363d; cursor: pointer; user-select: none; }
+th:hover { color: #c9d1d9; }
+td { padding: 10px 16px; border-bottom: 1px solid #21262d; font-size: 13px; }
+tr:hover td { background: #1c2128; }
+.flag { display: inline-block; width: 18px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+.speed-bar { display: inline-block; height: 4px; background: #58a6ff; border-radius: 2px; vertical-align: middle; margin-left: 6px; }
+.empty-state { text-align: center; padding: 60px 20px; color: #484f58; }
+.empty-state svg { margin-bottom: 16px; opacity: .3; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.status-dot.running { background: #d29922; animation: pulse 1s infinite; }
+.status-dot.idle { background: #484f58; }
+.status-dot.done { background: #3fb950; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+.ansi-green { color: #3fb950; }
+.ansi-cyan { color: #58a6ff; }
+.ansi-yellow { color: #d29922; }
+
+@media (max-width: 768px) {
+  .panels { grid-template-columns: 1fr; }
+  .cards { grid-template-columns: repeat(2, 1fr); }
+  .controls { flex-direction: column; align-items: stretch; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>CFNB <span class="badge">v2.0 Go</span></h1>
+    <p>Cloudflare CDN IP Optimization Tool - Automated node selection & DNS management</p>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="runBtn" onclick="startPipeline()">
+      <span id="runIcon">&#9654;</span> <span id="runText">Start Pipeline</span>
+    </button>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <span style="font-size:13px;color:#8b949e" id="statusText">
+      <span class="status-dot idle"></span> Idle
+    </span>
+  </div>
+
+  <div class="phase-tags" id="phases">
+    <span class="phase-tag">1. Fetch Sources</span>
+    <span class="phase-tag">2. TCP Test</span>
+    <span class="phase-tag">3. Availability</span>
+    <span class="phase-tag">4. HTTP Check</span>
+    <span class="phase-tag">5. Bandwidth</span>
+    <span class="phase-tag">6. Results</span>
+  </div>
+
+  <div class="cards" id="statsCards">
+    <div class="card">
+      <div class="card-label">Total Nodes Found</div>
+      <div class="card-value count" id="statNodes">-</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Total Bandwidth</div>
+      <div class="card-value speed" id="statBW">-</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Best Speed</div>
+      <div class="card-value speed" id="statBestSpeed">-</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Avg Latency</div>
+      <div class="card-value latency" id="statLatency">-</div>
+    </div>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-header">Terminal Output</div>
+      <div class="panel-body" id="logPanel">
+        <div class="empty-state" style="padding:40px">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          <p>Click "Start Pipeline" to begin</p>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">Pipeline Status</div>
+      <div class="panel-body" id="statusPanel">
+        <div class="empty-state" style="padding:40px">
+          <p>Waiting for pipeline to start...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-wrap" id="resultsTable" style="display:none">
+    <div class="table-header">
+      <span style="color:#f0f6fc">Optimized IP Nodes</span>
+      <input type="text" placeholder="Filter by country or IP..." id="filterInput" oninput="filterTable()">
+    </div>
+    <div style="max-height:500px;overflow-y:auto">
+      <table>
+        <thead>
+          <tr>
+            <th onclick="sortTable(0)">#</th>
+            <th onclick="sortTable(1)">IP Address</th>
+            <th onclick="sortTable(2)">Country</th>
+            <th onclick="sortTable(3)">Speed (Mbps)</th>
+            <th onclick="sortTable(4)">Latency (ms)</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const phases = ['Fetch Sources','TCP Test','Availability','HTTP Check','Bandwidth','Results'];
+let results = null;
+let sortCol = -1;
+let sortAsc = true;
+
+function setPhase(n) {
+  document.querySelectorAll('.phase-tag').forEach((t,i) => {
+    t.className = 'phase-tag' + (i < n ? ' done' : '') + (i === n ? ' active' : '');
+  });
+}
+
+function startPipeline() {
+  fetch('/api/run', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => { if (!d.ok) alert('Pipeline already running'); })
+    .catch(e => alert('Failed to start: ' + e));
+}
+
+function connectSSE() {
+  const evtSource = new EventSource('/api/events');
+  evtSource.onmessage = function(e) {
+    const s = JSON.parse(e.data);
+    updateUI(s);
+  };
+  evtSource.onerror = function() {
+    setTimeout(connectSSE, 3000);
+  };
+}
+
+function updateUI(s) {
+  const btn = document.getElementById('runBtn');
+  const icon = document.getElementById('runIcon');
+  const text = document.getElementById('runText');
+  const st = document.getElementById('statusText');
+  const fill = document.getElementById('progressFill');
+
+  if (s.running) {
+    btn.disabled = true;
+    text.textContent = 'Running...';
+    st.innerHTML = '<span class="status-dot running"></span> ' + (s.progress || 'Running');
+    fill.style.width = estimateProgress(s.progress) + '%';
+    
+    if (s.progress) {
+      const idx = phases.findIndex(p => s.progress.includes(p));
+      if (idx >= 0) setPhase(idx);
+    }
+  } else if (s.results) {
+    btn.disabled = false;
+    text.textContent = 'Start Pipeline';
+    st.innerHTML = '<span class="status-dot done"></span> Complete';
+    fill.style.width = '100%';
+    setPhase(phases.length);
+    showResults(s.results);
+  } else {
+    btn.disabled = false;
+    text.textContent = 'Start Pipeline';
+    st.innerHTML = '<span class="status-dot idle"></span> Idle';
+  }
+
+  updateLogs(s.logs || []);
+  updateStatusPanel(s);
+}
+
+function estimateProgress(p) {
+  if (!p) return 0;
+  for (let i = 0; i < phases.length; i++) {
+    if (p.includes(phases[i])) return ((i + 1) / phases.length) * 100;
+  }
+  return 0;
+}
+
+function updateLogs(logs) {
+  const panel = document.getElementById('logPanel');
+  if (!logs || logs.length === 0) return;
+  panel.innerHTML = '';
+  logs.forEach(l => {
+    const div = document.createElement('div');
+    div.className = 'log-line';
+    if (l.includes('ERROR')) div.className += ' error';
+    else if (l.includes('success') || l.includes('通过') || l.includes('完成')) div.className += ' success';
+    else if (l.includes('进度') || l.includes('Phase')) div.className += ' info';
+    else if (l.includes('失败') || l.includes('错误') || l.includes('跳过')) div.className += ' warn';
+    div.textContent = l;
+    panel.appendChild(div);
+  });
+  panel.scrollTop = panel.scrollHeight;
+}
+
+function updateStatusPanel(s) {
+  const panel = document.getElementById('statusPanel');
+  if (s.results && s.results.nodes) {
+    const r = s.results;
+    panel.innerHTML = `
+      <div style="margin-bottom:12px"><span style="color:#3fb950">&#10003;</span> <strong>Pipeline Complete</strong> - ${r.nodes.length} nodes selected</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="background:#21262d;padding:10px;border-radius:6px">
+          <div style="font-size:11px;color:#8b949e">Total Bandwidth</div>
+          <div style="font-size:18px;font-weight:700;color:#58a6ff">${r.totalBandwidth.toFixed(1)} Mbps</div>
+        </div>
+        <div style="background:#21262d;padding:10px;border-radius:6px">
+          <div style="font-size:11px;color:#8b949e">Avg Latency</div>
+          <div style="font-size:18px;font-weight:700;color:#3fb950">${r.avgLatency.toFixed(1)} ms</div>
+        </div>
+      </div>
+    `;
+  } else if (s.running) {
+    const phases = ['Phase 1/6: Fetch Sources','Phase 2/6: TCP Test','Phase 3/6: Availability','Phase 4/6: HTTP Check','Phase 5/6: Bandwidth','Phase 6/6: Finalize'];
+    panel.innerHTML = '<div style="display:flex;flex-direction:column;gap:8px">' +
+      phases.map((p,i) => {
+        let icon = '<span style="color:#30363d;margin-right:8px">&#9711;</span>';
+        if (s.progress && s.progress.includes(p.split(':')[0])) icon = '<span style="color:#d29922;margin-right:8px">&#9712;</span>';
+        if (s.progress && phases.some((pp,j) => j < i && s.progress.includes(pp.split(':')[0]))) icon = '<span style="color:#3fb950;margin-right:8px">&#10003;</span>';
+        return `<div style="font-size:13px;padding:6px;border-radius:4px;background:#21262d">${icon}${p}</div>`;
+      }).join('') + '</div>';
+  }
+}
+
+function showResults(r) {
+  results = r;
+  document.getElementById('resultsTable').style.display = 'block';
+  document.getElementById('statNodes').textContent = r.nodes.length;
+  document.getElementById('statBW').textContent = r.totalBandwidth.toFixed(1) + ' Mbps';
+  document.getElementById('statBestSpeed').textContent = (r.nodes.length > 0 ? Math.max(...r.nodes.map(n => n.speed || 0)).toFixed(1) : 0) + ' Mbps';
+  document.getElementById('statLatency').textContent = r.avgLatency.toFixed(1) + ' ms';
+  renderTable(r.nodes);
+}
+
+function renderTable(nodes) {
+  const tbody = document.getElementById('tableBody');
+  const filter = (document.getElementById('filterInput').value || '').toLowerCase();
+  let filtered = nodes;
+  if (filter) {
+    filtered = nodes.filter(n => n.node.toLowerCase().includes(filter) || (n.ccTag && n.ccTag.toLowerCase().includes(filter)) || (n.country && n.country.toLowerCase().includes(filter)));
+  }
+  
+  tbody.innerHTML = filtered.map((n, i) => {
+    const speeds = nodes.map(x => x.speed || 0);
+    const maxSpeed = speeds.length > 0 ? Math.max(...speeds) : 1;
+    const barW = maxSpeed > 0 ? Math.min(100, (n.speed / maxSpeed) * 100) : 0;
+    return `<tr>
+      <td style="color:#484f58">${i + 1}</td>
+      <td style="font-family:monospace;color:#f0f6fc">${escapeHtml(n.node.split('#')[0] || n.node)}</td>
+      <td><span class="flag" style="background:${countryColor(n.ccTag)}"></span>${n.country || n.ccTag || '-'}</td>
+      <td><span style="color:#58a6ff;font-weight:600">${n.speed.toFixed(1)}</span><span class="speed-bar" style="width:${barW * 0.5}%"></span></td>
+      <td style="color:#c9d1d9">${n.latency > 0 ? n.latency.toFixed(1) + ' ms' : '-'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function countryColor(cc) {
+  const map = { US:'#3b82f6', GB:'#ef4444', DE:'#f59e0b', JP:'#ef4444', KR:'#3b82f6', SG:'#ef4444', NL:'#f97316', FR:'#3b82f6', CA:'#ef4444', AU:'#3b82f6', HK:'#ef4444', IN:'#f97316', BR:'#22c55e', CN:'#ef4444', TW:'#3b82f6', VN:'#ef4444' };
+  return map[(cc||'').toUpperCase()] || '#8b949e';
+}
+
+function filterTable() {
+  if (results) renderTable(results.nodes);
+}
+
+function sortTable(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = true; }
+  if (!results) return;
+  
+  const nodes = [...results.nodes];
+  const keys = ['node','node','ccTag','speed','latency'];
+  nodes.sort((a,b) => {
+    let va = a[keys[col]] || '', vb = b[keys[col]] || '';
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    return (va < vb ? -1 : va > vb ? 1 : 0) * (sortAsc ? 1 : -1);
+  });
+  renderTable(nodes);
+}
+
+connectSSE();
+</script>
+</body>
+</html>
