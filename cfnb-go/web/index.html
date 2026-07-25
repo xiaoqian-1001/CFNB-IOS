@@ -449,9 +449,9 @@ function saveConfig() {
     httpTestEnabled: document.getElementById('cfgHTTPTest').checked,
     sourceURLs: document.getElementById('cfgSources').value.split('\n').map(s => s.trim()).filter(s => s),
     preFilterPortEnabled: document.getElementById('cfgPreFilterPort').checked,
-    preFilterPorts: document.getElementById('cfgPreFilterPorts').value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
+    preFilterPorts: document.getElementById('cfgPreFilterPorts').value.split(/[,，\s]+/).map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
     preFilterBlockedEnabled: document.getElementById('cfgPreFilterBlocked').checked,
-    preFilterBlockedCountries: document.getElementById('cfgPreFilterBlockedCountries').value.split(',').map(s => s.trim().toUpperCase()).filter(s => s)
+    preFilterBlockedCountries: document.getElementById('cfgPreFilterBlockedCountries').value.split(/[,，\s]+/).map(s => s.trim().toUpperCase()).filter(s => s)
   };
   localStorage.setItem('cfnbConfig', JSON.stringify(cfg));
 }
@@ -512,9 +512,9 @@ function startPipeline() {
     httpTestEnabled: document.getElementById('cfgHTTPTest').checked,
     sourceURLs: document.getElementById('cfgSources').value.split('\n').map(s => s.trim()).filter(s => s),
     preFilterPortEnabled: document.getElementById('cfgPreFilterPort').checked,
-    preFilterPorts: document.getElementById('cfgPreFilterPorts').value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
+    preFilterPorts: document.getElementById('cfgPreFilterPorts').value.split(/[,，\s]+/).map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
     preFilterBlockedEnabled: document.getElementById('cfgPreFilterBlocked').checked,
-    preFilterBlockedCountries: document.getElementById('cfgPreFilterBlockedCountries').value.split(',').map(s => s.trim().toUpperCase()).filter(s => s)
+    preFilterBlockedCountries: document.getElementById('cfgPreFilterBlockedCountries').value.split(/[,，\s]+/).map(s => s.trim().toUpperCase()).filter(s => s)
   };
   fetch('/api/run', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(cfg) })
     .then(r => r.json())
