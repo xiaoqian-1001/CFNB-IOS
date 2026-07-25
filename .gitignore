@@ -1,1 +1,3 @@
 cfnb-go/cmd/server/web/
+libcfnb.a
+libcfnb.h
