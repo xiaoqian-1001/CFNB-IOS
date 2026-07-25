@@ -383,6 +383,7 @@ tr:last-child td { border-bottom: none; }
         <div style="margin-top:6px">
           <input type="file" id="cfgFileInput" accept=".txt" style="display:none" onchange="importFile()">
           <button onclick="document.getElementById('cfgFileInput').click()" style="padding:4px 12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;cursor:pointer">导入文件</button>
+          <button onclick="clearDirectIPs()" style="padding:4px 12px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);border-radius:var(--radius-sm);color:var(--accent-red);font-size:12px;cursor:pointer;margin-left:6px">清空</button>
           <span style="font-size:11px;color:var(--text-muted);margin-left:8px">支持 .txt 文件，每行一个 IP</span>
         </div>
       </div>
@@ -541,6 +542,11 @@ function importFile() {
     saveConfig();
   };
   reader.readAsText(file);
+}
+
+function clearDirectIPs() {
+  document.getElementById('cfgDirectIPs').value = '';
+  saveConfig();
 }
 
 function togglePreFilterPort() {
