@@ -218,21 +218,11 @@ func runPipeline() {
 	addLog("================================")
 	updateProgress("Phase 1/6: Fetching node sources...")
 
-	exeDir, _ := os.Executable()
-	workDir := filepath.Dir(exeDir)
-
-	cfgPath := filepath.Join(workDir, "config.json")
-	cfg, err := config.Load(cfgPath)
+	cfg, err := config.Load("config.json")
 	if err != nil {
-		// Try current directory
-		cfg, err = config.Load("config.json")
-		if err != nil {
-			addLog("ERROR: Cannot load config: " + err.Error())
-			return
-		}
+		addLog("ERROR: Cannot load config: " + err.Error())
+		return
 	}
-
-	os.Chdir(workDir)
 
 	pr, pw := io.Pipe()
 	defer pw.Close()
