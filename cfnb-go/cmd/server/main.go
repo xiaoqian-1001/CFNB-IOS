@@ -209,6 +209,7 @@ type RunConfig struct {
 	TestAvailability       *bool    `json:"testAvailability"`
 	HTTPTestEnabled        *bool    `json:"httpTestEnabled"`
 	SourceURLs             []string `json:"sourceURLs"`
+	DirectIPs              []string `json:"directIPs"`
 	PreFilterPortEnabled   *bool    `json:"preFilterPortEnabled"`
 	PreFilterPorts         []int    `json:"preFilterPorts"`
 	PreFilterBlockedEnabled *bool   `json:"preFilterBlockedEnabled"`
@@ -336,6 +337,9 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 		if len(sources) > 0 {
 			cfg.AdditionalSources = sources
 		}
+	}
+	if len(rc.DirectIPs) > 0 {
+		cfg.DirectNodes = rc.DirectIPs
 	}
 	if rc.PreFilterPortEnabled != nil {
 		cfg.PreFilterPortEnabled = *rc.PreFilterPortEnabled

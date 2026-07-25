@@ -44,6 +44,7 @@ type Config struct {
 	CFDNSReadTimeout    float64 `json:"CF_DNS_READ_TIMEOUT"`
 	DNSRecordType       string  `json:"DNS_RECORD_TYPE"`
 	AdditionalSources   []Source `json:"ADDITIONAL_SOURCES"`
+	DirectNodes         []string `json:"DIRECT_NODES"`
 	FetchMaxRetries     int     `json:"FETCH_MAX_RETRIES"`
 	FetchRetryDelay     float64 `json:"FETCH_RETRY_DELAY"`
 	FetchTimeout        float64 `json:"FETCH_TIMEOUT"`

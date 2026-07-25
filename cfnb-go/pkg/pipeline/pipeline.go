@@ -252,6 +252,19 @@ func fetchAllSources(cfg *config.Config, log func(string, ...interface{})) []str
 		}
 	}
 
+	if len(cfg.DirectNodes) > 0 {
+		raw := strings.Join(cfg.DirectNodes, "\n")
+		directNodes := parser.ParseAdaptiveWithFallback(raw, cfg.AvailabilityCheckAPI, cfg.AvailabilityConnectTimeout, cfg.AvailabilityTimeout, cfg.FallbackWorkers)
+		log("直接输入 IP 解析到 %d 个节点", len(directNodes))
+		for _, n := range directNodes {
+			key := strings.SplitN(n, "#", 2)[0]
+			if !seen[key] {
+				seen[key] = true
+				nodes = append(nodes, n)
+			}
+		}
+	}
+
 	log("合并后总计 %d 个节点。", len(nodes))
 	return nodes
 }

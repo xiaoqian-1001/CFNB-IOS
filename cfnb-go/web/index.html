@@ -373,6 +373,15 @@ tr:last-child td { border-bottom: none; }
         <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">数据源 URL（每行一个）</label>
         <textarea id="cfgSources" rows="2" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;resize:vertical;font-family:monospace;transition:border-color .2s" onchange="saveConfig()">https://zip.cm.edu.kg/all.txt</textarea>
       </div>
+      <div style="margin-top:8px">
+        <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">直接输入 IP（每行一个，支持 IP:port 或 IP:port#国家）</label>
+        <textarea id="cfgDirectIPs" rows="2" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;resize:vertical;font-family:monospace;transition:border-color .2s" onchange="saveConfig()" placeholder="1.2.3.4:443&#10;5.6.7.8:2053#US"></textarea>
+        <div style="margin-top:6px">
+          <input type="file" id="cfgFileInput" accept=".txt" style="display:none" onchange="importFile()">
+          <button onclick="document.getElementById('cfgFileInput').click()" style="padding:4px 12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;cursor:pointer">导入文件</button>
+          <span style="font-size:11px;color:var(--text-muted);margin-left:8px">支持 .txt 文件，每行一个 IP</span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -457,6 +466,7 @@ function saveConfig() {
     testAvailability: document.getElementById('cfgAvailability').checked,
     httpTestEnabled: document.getElementById('cfgHTTPTest').checked,
     sourceURLs: document.getElementById('cfgSources').value.split('\n').map(s => s.trim()).filter(s => s),
+    directIPs: document.getElementById('cfgDirectIPs').value.split('\n').map(s => s.trim()).filter(s => s),
     preFilterPortEnabled: document.getElementById('cfgPreFilterPort').checked,
     preFilterPorts: document.getElementById('cfgPreFilterPorts').value.split(/[,，\s]+/).map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
     preFilterBlockedEnabled: document.getElementById('cfgPreFilterBlocked').checked,
@@ -483,6 +493,7 @@ function loadConfig() {
       if (saved.testAvailability !== undefined) document.getElementById('cfgAvailability').checked = saved.testAvailability;
       if (saved.httpTestEnabled !== undefined) document.getElementById('cfgHTTPTest').checked = saved.httpTestEnabled;
       if (saved.sourceURLs && Array.isArray(saved.sourceURLs) && saved.sourceURLs.length > 0) document.getElementById('cfgSources').value = saved.sourceURLs.join('\n');
+      if (saved.directIPs && Array.isArray(saved.directIPs) && saved.directIPs.length > 0) document.getElementById('cfgDirectIPs').value = saved.directIPs.join('\n');
       document.getElementById('cfgPreFilterPort').checked = saved.preFilterPortEnabled !== undefined ? saved.preFilterPortEnabled : true;
       document.getElementById('preFilterPortRow').style.display = document.getElementById('cfgPreFilterPort').checked ? 'block' : 'none';
       if (saved.preFilterPorts && Array.isArray(saved.preFilterPorts) && saved.preFilterPorts.length > 0) {
@@ -497,6 +508,25 @@ function loadConfig() {
   } catch(e) {}
 }
 loadConfig();
+
+function importFile() {
+  const fileInput = document.getElementById('cfgFileInput');
+  const file = fileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result;
+    const ta = document.getElementById('cfgDirectIPs');
+    if (ta.value.trim()) {
+      ta.value += '\n' + text;
+    } else {
+      ta.value = text;
+    }
+    fileInput.value = '';
+    saveConfig();
+  };
+  reader.readAsText(file);
+}
 
 function togglePreFilterPort() {
   const show = document.getElementById('cfgPreFilterPort').checked;
@@ -526,6 +556,7 @@ function startPipeline() {
     testAvailability: document.getElementById('cfgAvailability').checked,
     httpTestEnabled: document.getElementById('cfgHTTPTest').checked,
     sourceURLs: document.getElementById('cfgSources').value.split('\n').map(s => s.trim()).filter(s => s),
+    directIPs: document.getElementById('cfgDirectIPs').value.split('\n').map(s => s.trim()).filter(s => s),
     preFilterPortEnabled: document.getElementById('cfgPreFilterPort').checked,
     preFilterPorts: document.getElementById('cfgPreFilterPorts').value.split(/[,，\s]+/).map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
     preFilterBlockedEnabled: document.getElementById('cfgPreFilterBlocked').checked,
