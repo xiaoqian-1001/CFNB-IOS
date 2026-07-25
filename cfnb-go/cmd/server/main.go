@@ -230,8 +230,13 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 
 	var rc RunConfig
 	if r.Body != nil {
-		json.NewDecoder(r.Body).Decode(&rc)
+		if err := json.NewDecoder(r.Body).Decode(&rc); err != nil {
+			addLog("警告: 解析请求配置失败: " + err.Error())
+		}
 	}
+
+	addLog(fmt.Sprintf("接收到配置: 前置端口过滤=%v, 端口=%v, 前置黑名单过滤=%v, 黑名单国家=%v",
+		rc.PreFilterPortEnabled, rc.PreFilterPorts, rc.PreFilterBlockedEnabled, rc.PreFilterBlockedCountries))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancelPipeline = cancel
