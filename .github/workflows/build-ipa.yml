@@ -98,11 +98,6 @@ jobs:
                 self.viewController.webView = self.webView;
                 self.window.rootViewController = self.viewController;
                 [self.window makeKeyAndVisible];
-                if (@available(iOS 13.0, *)) {
-                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                        self.window.windowScene = (UIWindowScene *)application.connectedScenes.anyObject;
-                    });
-                }
                 [self showLoading];
 
                 // Switch to writable Documents directory for iOS sandbox
