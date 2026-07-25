@@ -31,8 +31,8 @@ jobs:
           
           echo "=== Building libcfnb.a (c-archive) ==="
           CGO_ENABLED=1 GOOS=ios GOARCH=arm64 \
-            CC="$CLANG -arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
-            CGO_CFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
+            CC="$CLANG -arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=16.0" \
+            CGO_CFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=16.0" \
             go build -buildmode=c-archive -tags ios -o "${{ github.workspace }}/libcfnb.a" ./cmd/server/ 2>&1 || echo "WARNING: c-archive build failed"
           
           ls -lh "${{ github.workspace }}/libcfnb.a" 2>/dev/null || echo "libcfnb.a not generated"
@@ -106,7 +106,7 @@ jobs:
           }
           OBJCEOF
 
-          clang -arch arm64 -isysroot "$SDK_PATH" -miphoneos-version-min=12.0 \
+          clang -arch arm64 -isysroot "$SDK_PATH" -miphoneos-version-min=16.0 \
             -framework UIKit -framework WebKit -framework Foundation \
             -framework CoreFoundation -framework Security -framework CFNetwork \
             -fobjc-arc -I. -o CFNB main.m libcfnb.a
@@ -139,7 +139,7 @@ jobs:
               <key>CFBundlePackageType</key>
               <string>APPL</string>
               <key>MinimumOSVersion</key>
-              <string>12.0</string>
+              <string>16.0</string>
               <key>NSAppTransportSecurity</key>
               <dict>
                   <key>NSAllowsArbitraryLoads</key>
