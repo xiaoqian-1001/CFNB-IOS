@@ -62,6 +62,7 @@ jobs:
           - (BOOL)prefersHomeIndicatorAutoHidden { return YES; }
           - (void)viewDidLoad {
                 [super viewDidLoad];
+                self.view.backgroundColor = [UIColor colorWithRed:0.039 green:0.055 blue:0.078 alpha:1];
                 self.webView.frame = self.view.bounds;
                 self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
                 [self.view addSubview:self.webView];
@@ -91,7 +92,7 @@ jobs:
                 self.webView = [[WKWebView alloc] initWithFrame:self.window.bounds configuration:c];
                 self.webView.navigationDelegate = self;
                 self.webView.opaque = NO;
-                self.webView.backgroundColor = [UIColor blackColor];
+                self.webView.backgroundColor = [UIColor colorWithRed:0.039 green:0.055 blue:0.078 alpha:1];
                 self.webView.scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
                 self.webView.scrollView.contentInset = UIEdgeInsetsZero;
                 self.webView.scrollView.scrollIndicatorInsets = UIEdgeInsetsZero;
