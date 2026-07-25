@@ -32,7 +32,7 @@ jobs:
             CXXFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
             go build -o cfnb .
           
-          # Also build the web server
+          # Also build the web server (with embedded web assets)
           CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
             CC="$(xcrun -sdk iphoneos find clang)" \
             CXX="$(xcrun -sdk iphoneos find clang++)" \
@@ -43,17 +43,13 @@ jobs:
           file cfnb
           file cfnb-server
       
-      - name: Create Xcode project structure
+      - name: Create minimal Xcode project (for code signature packaging)
         run: |
           cd ${{ github.workspace }}
           
-          # ─── 1. Create the Xcode project directory ───
           mkdir -p CFNB.xcodeproj/project.xcworkspace
           
-          # ─── 2. Copy web assets into the project ───
-          cp -r cfnb-go/web CFNB.app.web
-
-          # ─── 3. Create Info.plist ───
+          # Create a super simple Info.plist
           cat > Info.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -66,7 +62,7 @@ jobs:
               <key>CFBundleShortVersionString</key>
               <string>1.0</string>
               <key>CFBundleExecutable</key>
-              <string>CFNB</string>
+              <string>cfnb-server</string>
               <key>CFBundleInfoDictionaryVersion</key>
               <string>6.0</string>
               <key>CFBundlePackageType</key>
@@ -82,118 +78,17 @@ jobs:
           </plist>
           EOF
           
-          # ─── 4. Create main.swift with server startup and WebView ───
-          cat > main.swift << 'SWIFTEOF'
-          import UIKit
-          import WebKit
-          import os
-
-          @main
-          class AppDelegate: UIResponder, UIApplicationDelegate, WKNavigationDelegate {
-              var window: UIWindow?
-              var process: Process?
-              var port = 8080
-              var webView: WKWebView?
-              let logger = Logger(subsystem: "com.cfnb.app", category: "main")
-
-              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-                  window = UIWindow(frame: UIScreen.main.bounds)
-                  
-                  // Launch Go backend server
-                  startServer()
-                  
-                  // Create webview
-                  let config = WKWebViewConfiguration()
-                  webView = WKWebView(frame: UIScreen.main.bounds, configuration: config)
-                  webView!.navigationDelegate = self
-                  
-                  // Wait for server to be ready then load URL
-                  DispatchQueue.global().asyncAfter(deadline: .now() + 2) { [weak self] in
-                      self?.loadDashboard()
-                  }
-                  
-                  window?.rootViewController = UIViewController()
-                  if let vc = window?.rootViewController, let wv = webView {
-                      vc.view = wv
-                  }
-                  window?.makeKeyAndVisible()
-                  return true
-              }
-
-              func startServer() {
-                  process = Process()
-                  let exePath = Bundle.main.bundlePath as NSString
-                  
-                  // iOS app bundles are flat: /var/.../CFNB.app/cfnb-server
-                  let candidates = [
-                      exePath.appendingPathComponent("cfnb-server"),
-                      exePath.deletingLastPathComponent().appendingPathComponent("cfnb-server")
-                  ]
-                  
-                  var executablePath: String?
-                  for candidate in candidates {
-                      if FileManager.default.fileExists(atPath: candidate) {
-                          executablePath = candidate
-                          break
-                      }
-                  }
-                  
-                  // Check "web" directory relative to bundle
-                  let webCandidates = [
-                      exePath.appendingPathComponent("CFNB.app.web"),
-                      exePath.deletingLastPathComponent().appendingPathComponent("CFNB.app.web"),
-                      exePath.appendingPathComponent("web"),
-                      exePath.deletingLastPathComponent().appendingPathComponent("web")
-                  ]
-                  
-                  var webDirPath: String?
-                  for candidate in webCandidates {
-                      if FileManager.default.fileExists(atPath: candidate) {
-                          webDirPath = candidate
-                          break
-                      }
-                  }
-                  
-                  guard let exe = executablePath else {
-                      logger.error("cfnb-server binary not found in bundle")
-                      logger.error("Bundle path: \(exePath)")
-                      return
-                  }
-                  
-                  process!.executableURL = URL(fileURLWithPath: exe)
-                  
-                  var env = ProcessInfo.processInfo.environment
-                  env["PORT"] = String(port)
-                  if let webDir = webDirPath {
-                      env["WEB_DIR"] = webDir
-                  }
-                  process!.environment = env
-                  process!.launch()
-                  
-                  logger.info("Started cfnb-server from: \(exe)")
-              }
-
-              func loadDashboard() {
-                  guard let wv = webView else { return }
-                  let url = URL(string: "http://localhost:\(port)")!
-                  wv.load(URLRequest(url: url))
-                  logger.info("Loading dashboard at \(url.absoluteString)")
-              }
-
-              func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-                  logger.error("WebView load failed: \(error.localizedDescription)")
-              }
-          }
-          SWIFTEOF
+          # Create an empty main.swift to satisfy Xcode requirements
+          echo '// placeholder' > main.swift
           
-          echo "Files created:"
+          echo "Minimal project structure created"
           ls -la
-          echo "---"
-          ls -la CFNB.app.web/ 2>/dev/null || echo "No web dir yet"
       
       - name: Generate project.pbxproj and Scheme
         run: |
           cd ${{ github.workspace }}
+          
+          cp -r cfnb-go/web CFNB.app.web
           
           cat > CFNB.xcodeproj/project.pbxproj << 'EOFPROJ'
           // !$*UTF8*$!
@@ -202,47 +97,23 @@ jobs:
           	classes = { };
           	objectVersion = 50;
           	objects = {
-          
           /* Begin PBXBuildFile section */
           		F1000001 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000101; };
           /* End PBXBuildFile section */
-          
           /* Begin PBXFileReference section */
           		F1000101 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
           		F1000102 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
           		F1000103 /* CFNB.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CFNB.app; sourceTree = BUILT_PRODUCTS_DIR; };
-          		F1000104 /* CFNB.app.web */ = {isa = PBXFileReference; lastKnownFileType = folder; path = CFNB.app.web; sourceTree = "<group>"; };
           /* End PBXFileReference section */
-          
           /* Begin PBXGroup section */
-          		F1000201 = {
-          			isa = PBXGroup;
-          			children = (
-          				F1000104,
-          				F1000301,
-          			);
-          			sourceTree = "<group>";
-          		};
-          		F1000301 /* Source files */ = {
-          			isa = PBXGroup;
-          			children = (
-          				F1000101,
-          				F1000102,
-          			);
-          			path = "";
-          			sourceTree = "<group>";
-          		};
+          		F1000201 = {isa = PBXGroup; children = (F1000301,); sourceTree = "<group>"; };
+          		F1000301 /* */ = {isa = PBXGroup; children = (F1000101, F1000102); path = ""; sourceTree = "<group>"; };
           /* End PBXGroup section */
-          
           /* Begin PBXNativeTarget section */
           		F10003T1 /* CFNB */ = {
           			isa = PBXNativeTarget;
           			buildConfigurationList = F1000502;
-          			buildPhases = (
-          				F10004S1,
-          				F10004R1,
-          				F10004F1,
-          			);
+          			buildPhases = (F10004S1, F10004R1, F10004F1);
           			buildRules = ( );
           			dependencies = ( );
           			name = CFNB;
@@ -251,7 +122,6 @@ jobs:
           			productType = "com.apple.product-type.application";
           		};
           /* End PBXNativeTarget section */
-          
           /* Begin PBXProject section */
           		F1000901 = {
           			isa = PBXProject;
@@ -265,84 +135,50 @@ jobs:
           			productRefGroup = F1000301;
           			projectDirPath = "";
           			projectRoot = "";
-          			targets = (
-          				F10003T1,
-          			);
+          			targets = (F10003T1,);
           		};
           /* End PBXProject section */
-          
           /* Begin PBXResourcesBuildPhase section */
-          		F10004R1 /* Resources */ = {
-          			isa = PBXResourcesBuildPhase;
-          			buildActionMask = 2147483647;
-          			files = ( );
-          			runOnlyForDeploymentPostprocessing = 0;
-          		};
+          		F10004R1 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
           /* End PBXResourcesBuildPhase section */
-          
           /* Begin PBXSourcesBuildPhase section */
-          		F10004S1 /* Sources */ = {
-          			isa = PBXSourcesBuildPhase;
-          			buildActionMask = 2147483647;
-          			files = ( F1000001, );
-          			runOnlyForDeploymentPostprocessing = 0;
-          		};
+          		F10004S1 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ( F1000001, ); runOnlyForDeploymentPostprocessing = 0; };
           /* End PBXSourcesBuildPhase section */
-          
           /* Begin PBXFrameworksBuildPhase section */
-          		F10004F1 /* Frameworks */ = {
-          			isa = PBXFrameworksBuildPhase;
-          			buildActionMask = 2147483647;
-          			files = ( );
-          			runOnlyForDeploymentPostprocessing = 0;
-          		};
+          		F10004F1 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
           /* End PBXFrameworksBuildPhase section */
-          
           /* Begin XCBuildConfiguration section */
-          		F1000A01 /* Release */ = {
+          		F1000A01 /* Debug */ = {
           			isa = XCBuildConfiguration;
           			buildSettings = {
-          				ALWAYS_SEARCH_USER_PATHS = NO;
-          				CLANG_ANALYZER_NONNULL = YES;
-          				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
-          				CLANG_ENABLE_MODULES = YES;
-          				CLANG_ENABLE_OBJC_ARC = YES;
-          				COPY_PHASE_STRIP = NO;
-          				DEBUG_INFORMATION_FORMAT = dwarf;
-          				GCC_C_LANGUAGE_STANDARD = gnu11;
-          				GCC_OPTIMIZATION_LEVEL = s;
-          				GCC_PREPROCESSOR_DEFINITIONS = (
-          					"DEBUG=1",
-          					"$(inherited)",
-          				);
-          				GCC_WARN_UNUSED_FUNCTION = YES;
-          				GCC_WARN_UNUSED_VARIABLE = YES;
+          				CODE_SIGN_IDENTITY = "";
+          				CODE_SIGNING_REQUIRED = NO;
+          				CODE_SIGNING_ALLOWED = NO;
+          				GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)");
           				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
-          				MTL_ENABLE_DEBUG_INFO = NO;
           				ONLY_ACTIVE_ARCH = YES;
           				SDKROOT = iphoneos;
-          				SWIFT_COMPILATION_MODE = wholemodule;
           				TARGETED_DEVICE_FAMILY = "1,2";
           			};
-          			name = Release;
+          			name = Debug;
           		};
-          		F1000902 = {
+          		F1000902 /* Release */ = {
           			isa = XCBuildConfiguration;
           			buildSettings = {
           				CODE_SIGN_IDENTITY = "";
           				CODE_SIGNING_REQUIRED = NO;
           				CODE_SIGNING_ALLOWED = NO;
           				INFOPLIST_FILE = Info.plist;
+          				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
           				PRODUCT_BUNDLE_IDENTIFIER = com.cfnb.app;
           				PRODUCT_NAME = CFNB;
-          				SKIP_INSTALL = YES;
           				SWIFT_EMIT_LOC_STRINGS = YES;
           				SWIFT_VERSION = 5.0;
+          				TARGETED_DEVICE_FAMILY = "1,2";
           			};
-          			name = Debug;
+          			name = Release;
           		};
           /* End XCBuildConfiguration section */
-          
           /* Begin XCConfigurationList section */
           		F1000501 /* Build configuration list for PBXProject "CFNB" */ = {
           			isa = XCConfigurationList;
@@ -361,7 +197,7 @@ jobs:
           }
           EOFPROJ
           
-          # Create minimal shared scheme directory
+          # Create shared scheme
           mkdir -p CFNB.xcodeproj/xcshareddata/xcschemes
           cat > CFNB.xcodeproj/xcshareddata/xcschemes/CFNB.xcscheme << 'SCHEME_EOF'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -383,7 +219,7 @@ jobs:
           </Scheme>
           SCHEME_EOF
           
-          echo "PBXProj and Scheme generated successfully"
+          echo "PBXProj and Scheme generated"
           ls -la CFNB.xcodeproj/xcshareddata/xcschemes/
       
       - name: Archive
@@ -417,15 +253,13 @@ jobs:
           APP_IN_XCA="build/CFNB.xcarchive/Products/Applications/CFNB.app"
           mkdir -p "$APP_IN_XCA"
           cp cfnb-go/cfnb-server "$APP_IN_XCA/cfnb-server"
-          cp cfnb-go/cfnb "$APP_IN_XCA/cfnb"
-          chmod +x "$APP_IN_XCA/cfnb-server" "$APP_IN_XCA/cfnb"
+          chmod +x "$APP_IN_XCA/cfnb-server"
           
-          # Copy web assets
+          # Copy web assets (if available)
           if [ -d "CFNB.app.web" ]; then
-            cp -r CFNB.app.web "$APP_IN_XCA/CFNB.app.web"
-          else
-            # Try alternative location
-            cp -r cfnb-go/web "$APP_IN_XCA/web" 2>/dev/null || true
+            cp -r CFNB.app.web "$APP_IN_XCA/"
+          elif [ -d "cfnb-go/web" ]; then
+            cp -r cfnb-go/web "$APP_IN_XCA/web"
           fi
           
           mkdir -p build/Payload
