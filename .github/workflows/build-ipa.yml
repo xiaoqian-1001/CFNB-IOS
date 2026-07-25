@@ -380,6 +380,33 @@ jobs:
             exit 1
           fi
           
+          # Verify pbxproj exists
+          if [ ! -f "CFNB.xcodeproj/project.pbxproj" ]; then
+            echo "ERROR: project.pbxproj not found!"
+            ls -la CFNB.xcodeproj/
+            exit 1
+          fi
+          
+          # List all files in the workspace to debug
+          echo "=== Workspace files ==="
+          find . -maxdepth 3 -not -path './.git/*' -not -path './.github/*' | sort
+          
+          # Try building first to verify the project is valid
+          xcodebuild build \
+            -scheme CFNB \
+            -configuration Release \
+            -destination generic/platform=iOS \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            SYMROOT=$GITHUB_WORKSPACE/build/SYM \
+            OBJROOT=$GITHUB_WORKSPACE/build/OBJ \
+            BUILD_DIR=$GITHUB_WORKSPACE/build \
+            ONLY_ACTIVE_ARCH=NO \
+            2>&1 | tail -30
+          
+          echo "=== Build succeeded, now archiving ==="
+          
           xcodebuild archive \
             -scheme CFNB \
             -configuration Release \
@@ -390,7 +417,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             SYMROOT=$GITHUB_WORKSPACE/build/SYM \
             OBJROOT=$GITHUB_WORKSPACE/build/OBJ \
-            BUILD_DIR=$GITHUB_WORKSPACE/build
+            BUILD_DIR=$GITHUB_WORKSPACE/build \
+            ONLY_ACTIVE_ARCH=NO
       
       - name: Export IPA
         run: |
