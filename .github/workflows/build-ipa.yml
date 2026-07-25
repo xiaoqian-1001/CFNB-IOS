@@ -185,10 +185,10 @@ jobs:
                   <key>NSAllowsArbitraryLoads</key>
                   <true/>
               </dict>
+              <key>UIViewControllerBasedStatusBarAppearance</key>
+              <true/>
               <key>UIStatusBarHidden</key>
               <true/>
-              <key>UIViewControllerBasedStatusBarAppearance</key>
-              <false/>
               <key>UIRequiresFullScreen</key>
               <true/>
           </dict>
