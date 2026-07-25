@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -31,25 +32,33 @@ type PipelineStatus struct {
 	Logs     []string        `json:"logs"`
 }
 
+type NodeInfo struct {
+	Node        string  `json:"node"`
+	Speed       float64 `json:"speed"`
+	PeakSpeed   float64 `json:"peakSpeed"`
+	Latency     float64 `json:"latency"`
+	HTTPLatency float64 `json:"httpLatency"`
+	HTTPJitter  float64 `json:"httpJitter"`
+	CCTag       string  `json:"ccTag"`
+	Country     string  `json:"country"`
+	CountryCode string  `json:"countryCode"`
+	ColoCode    string  `json:"coloCode"`
+}
+
 type PipelineResults struct {
 	Nodes          []NodeInfo `json:"nodes"`
 	TotalBandwidth float64    `json:"totalBandwidth"`
 	AvgLatency     float64    `json:"avgLatency"`
-}
-
-type NodeInfo struct {
-	Node    string  `json:"node"`
-	Speed   float64 `json:"speed"`
-	Latency float64 `json:"latency"`
-	CCTag   string  `json:"ccTag"`
-	Country string  `json:"country"`
+	TotalTime      float64    `json:"totalTime"`
 }
 
 var (
-	status  PipelineStatus
-	mu      sync.Mutex
-	notifs  []chan bool
-	notifMu sync.Mutex
+	status             PipelineStatus
+	mu                 sync.Mutex
+	notifs             []chan bool
+	notifMu            sync.Mutex
+	lastPipelineResult *pipeline.Result
+	cancelPipeline     func()
 )
 
 func RunServer(port string) {
@@ -57,6 +66,7 @@ func RunServer(port string) {
 	http.HandleFunc("/api/run", middlewareCORS(handleRun))
 	http.HandleFunc("/api/events", middlewareCORS(handleEvents))
 	http.HandleFunc("/api/status", middlewareCORS(handleStatus))
+	http.HandleFunc("/api/stop", middlewareCORS(handleStop))
 
 	fmt.Printf("CFNB Web Dashboard starting on :%s\n", port)
 	fmt.Fprintf(os.Stderr, "CFNB Web Dashboard starting on :%s\n", port)
@@ -185,11 +195,17 @@ func handleEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 type RunConfig struct {
-	BandwidthSize    float64 `json:"bandwidthSize"`
-	Candidates       int     `json:"candidates"`
-	Mode             string  `json:"mode"`
-	TCPProbes        int     `json:"tcpProbes"`
-	BandwidthWorkers int     `json:"bandwidthWorkers"`
+	BandwidthSize     float64 `json:"bandwidthSize"`
+	Candidates        int     `json:"candidates"`
+	Mode              string  `json:"mode"`
+	GlobalTopN        int     `json:"globalTopN"`
+	PerCountryTopN    int     `json:"perCountryTopN"`
+	TCPProbes         int     `json:"tcpProbes"`
+	TCPWorkers        int     `json:"tcpWorkers"`
+	BandwidthWorkers  int     `json:"bandwidthWorkers"`
+	TestAvailability  *bool   `json:"testAvailability"`
+	HTTPTestEnabled   *bool   `json:"httpTestEnabled"`
+	SourceURLs        []string `json:"sourceURLs"`
 }
 
 func handleRun(w http.ResponseWriter, r *http.Request) {
@@ -213,13 +229,32 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 		json.NewDecoder(r.Body).Decode(&rc)
 	}
 
-	go runPipeline(rc)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancelPipeline = cancel
+
+	go runPipeline(ctx, rc)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
 }
 
-func runPipeline(rc RunConfig) {
+func handleStop(w http.ResponseWriter, r *http.Request) {
+	mu.Lock()
+	if !status.Running {
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":false,"msg":"没有正在运行的任务"}`))
+		return
+	}
+	mu.Unlock()
+	if cancelPipeline != nil {
+		cancelPipeline()
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"ok":true,"msg":"正在终止任务..."}`))
+}
+
+func runPipeline(ctx context.Context, rc RunConfig) {
 	defer func() {
 		mu.Lock()
 		status.Running = false
@@ -246,6 +281,9 @@ func runPipeline(rc RunConfig) {
 	if rc.TCPProbes > 0 {
 		cfg.TCPProbes = rc.TCPProbes
 	}
+	if rc.TCPWorkers > 0 {
+		cfg.MaxWorkers = rc.TCPWorkers
+	}
 	if rc.BandwidthWorkers > 0 {
 		cfg.BandwidthWorkers = rc.BandwidthWorkers
 	}
@@ -253,6 +291,30 @@ func runPipeline(rc RunConfig) {
 		cfg.UseGlobalMode = false
 	} else {
 		cfg.UseGlobalMode = true
+	}
+	if rc.GlobalTopN > 0 {
+		cfg.GlobalTopN = rc.GlobalTopN
+	}
+	if rc.PerCountryTopN > 0 {
+		cfg.PerCountryTopN = rc.PerCountryTopN
+	}
+	if rc.TestAvailability != nil {
+		cfg.TestAvailability = *rc.TestAvailability
+	}
+	if rc.HTTPTestEnabled != nil {
+		cfg.HTTPTestEnabled = *rc.HTTPTestEnabled
+	}
+	if len(rc.SourceURLs) > 0 {
+		sources := make([]config.Source, 0, len(rc.SourceURLs))
+		for _, u := range rc.SourceURLs {
+			u = strings.TrimSpace(u)
+			if u != "" {
+				sources = append(sources, config.Source{URL: u, Enabled: true})
+			}
+		}
+		if len(sources) > 0 {
+			cfg.AdditionalSources = sources
+		}
 	}
 
 	pr, pw, err := os.Pipe()
@@ -273,9 +335,11 @@ func runPipeline(rc RunConfig) {
 	outBuf := &bytes.Buffer{}
 	done := make(chan error, 1)
 
+	var result *pipeline.Result
 	go func() {
 		defer restoreStdout()
-		_, err := pipeline.Run(cfg, io.MultiWriter(pw, outBuf))
+		r, err := pipeline.Run(cfg, io.MultiWriter(pw, outBuf))
+		result = r
 		pw.Close()
 		done <- err
 	}()
@@ -300,6 +364,14 @@ func runPipeline(rc RunConfig) {
 
 	for {
 		select {
+		case <-ctx.Done():
+			pw.Close()
+			restoreStdout()
+			<-scannerDone
+			addLog("================================")
+			addLog("任务已被用户终止")
+			loadResults()
+			return
 		case <-ticker.C:
 			output := outBuf.String()
 			if output != lastOutput {
@@ -315,6 +387,10 @@ func runPipeline(rc RunConfig) {
 			loadResults()
 			return
 		case err := <-done:
+			<-scannerDone
+			mu.Lock()
+			lastPipelineResult = result
+			mu.Unlock()
 			output := outBuf.String()
 			if output != lastOutput {
 				lastOutput = output
@@ -343,9 +419,9 @@ func updateProgressFromLog(line string) {
 		updateProgress("Phase 4/6: Availability & HTTP testing...")
 	case strings.Contains(line, "可用性"):
 		updateProgress("Phase 4/6: Availability testing...")
-	case strings.Contains(line, "HTTP"):
+	case strings.Contains(line, "HTTP检测"):
 		updateProgress("Phase 4/6: HTTP testing...")
-	case strings.Contains(line, "带宽测") || strings.Contains(line, "带宽"):
+	case strings.Contains(line, "带宽测速"):
 		updateProgress("Phase 5/6: Bandwidth testing...")
 	case strings.Contains(line, "结果已保存"):
 		updateProgress("Phase 6/6: Finalizing results...")
@@ -391,6 +467,30 @@ func loadResults() {
 				}
 			}
 		}
+		mu.Lock()
+		if lastPipelineResult != nil {
+			if ps, ok := lastPipelineResult.PeakSpeedMap[node.Node]; ok {
+				node.PeakSpeed = ps
+			}
+			if hl, ok := lastPipelineResult.HTTPLatencyMap[node.Node]; ok {
+				node.HTTPLatency = hl
+			}
+			if hj, ok := lastPipelineResult.HTTPJitterMap[node.Node]; ok {
+				node.HTTPJitter = hj
+			}
+			if cc, ok := lastPipelineResult.CountryInfo[node.Node]; ok && cc != "" {
+				node.CountryCode = cc
+			}
+			if co, ok := lastPipelineResult.ColoInfo[node.Node]; ok && co != "" {
+				node.ColoCode = co
+			}
+		}
+		if node.CountryCode == "" && node.CCTag != "" {
+			if cc, ok := coloCountryMap[node.CCTag]; ok {
+				node.CountryCode = cc
+			}
+		}
+		mu.Unlock()
 		nodes = append(nodes, node)
 	}
 
@@ -415,6 +515,11 @@ func loadResults() {
 			results.AvgLatency = totalLatency / float64(latCount)
 		}
 	}
+	mu.Lock()
+	if lastPipelineResult != nil {
+		results.TotalTime = lastPipelineResult.TotalTime.Seconds()
+	}
+	mu.Unlock()
 
 	mu.Lock()
 	status.Results = results

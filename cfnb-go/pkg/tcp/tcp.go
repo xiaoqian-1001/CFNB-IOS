@@ -103,7 +103,7 @@ func TestAll(nodes []string, timeout float64, probes int, minSuccessRate float64
 		}
 		now := time.Now()
 		if now.Sub(lastPrint) >= time.Duration(progressInterval)*time.Second || completed == total {
-			fmt.Printf("\r进度：%d/%d (%.1f%%)", completed, total, float64(completed)/float64(total)*100)
+			fmt.Printf("\n进度：%d/%d (%.1f%%)", completed, total, float64(completed)/float64(total)*100)
 			lastPrint = now
 		}
 	}

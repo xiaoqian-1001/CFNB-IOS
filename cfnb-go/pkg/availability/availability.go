@@ -11,10 +11,11 @@ import (
 )
 
 type CheckResult struct {
-	Node      string
-	OK        bool
-	Stack     string
-	ExitInfo  map[string]string
+	Node     string
+	OK       bool
+	Stack    string
+	Country  string
+	ExitInfo map[string]string
 }
 
 func Check(nodeStr string, apiURL string, connectTimeout, readTimeout float64, innerRetryEnabled bool, innerRetryMax int, innerRetryDelay float64) CheckResult {
@@ -78,7 +79,8 @@ func Check(nodeStr string, apiURL string, connectTimeout, readTimeout float64, i
 							}
 						}
 					}
-					return CheckResult{Node: nodeStr, OK: true, Stack: stack, ExitInfo: exitInfo}
+					country, _ := exitInfo["country"]
+					return CheckResult{Node: nodeStr, OK: true, Stack: stack, Country: country, ExitInfo: exitInfo}
 				}
 			}
 		} else {
@@ -107,8 +109,9 @@ func extractIPPort(node string) (string, string) {
 	return parts[0], parts[1]
 }
 
-func FilterCandidates(candidates []string, apiURL string, connectTimeout, readTimeout float64, innerRetryEnabled bool, innerRetryMax int, innerRetryDelay float64, workers int, progressInterval int) (passed []string, ipInfo map[string]string, exitDetails map[string]map[string]string) {
+func FilterCandidates(candidates []string, apiURL string, connectTimeout, readTimeout float64, innerRetryEnabled bool, innerRetryMax int, innerRetryDelay float64, workers int, progressInterval int) (passed []string, ipInfo map[string]string, countryInfo map[string]string, exitDetails map[string]map[string]string) {
 	ipInfo = make(map[string]string)
+	countryInfo = make(map[string]string)
 	exitDetails = make(map[string]map[string]string)
 
 	if len(candidates) == 0 {
@@ -149,11 +152,12 @@ func FilterCandidates(candidates []string, apiURL string, connectTimeout, readTi
 		if r.OK {
 			passed = append(passed, r.Node)
 			ipInfo[r.Node] = r.Stack
+			countryInfo[r.Node] = r.Country
 			exitDetails[r.Node] = r.ExitInfo
 		}
 		now := time.Now()
 		if now.Sub(lastPrint) >= time.Duration(progressInterval)*time.Second || completed == total {
-			fmt.Printf("\r[可用性检测] 进度：%d/%d (%.1f%%) 通过数量：%d", completed, total, float64(completed)/float64(total)*100, len(passed))
+			fmt.Printf("\n[可用性检测] 进度：%d/%d (%.1f%%) 通过数量：%d", completed, total, float64(completed)/float64(total)*100, len(passed))
 			lastPrint = now
 		}
 	}
@@ -161,17 +165,17 @@ func FilterCandidates(candidates []string, apiURL string, connectTimeout, readTi
 	return
 }
 
-func FilterWithRetry(candidates []string, apiURL string, connectTimeout, readTimeout float64, innerRetryEnabled bool, innerRetryMax int, innerRetryDelay float64, retryMax int, retryDelay float64, workers int, progressInterval int, notify func(string, string)) ([]string, map[string]string, map[string]map[string]string) {
+func FilterWithRetry(candidates []string, apiURL string, connectTimeout, readTimeout float64, innerRetryEnabled bool, innerRetryMax int, innerRetryDelay float64, retryMax int, retryDelay float64, workers int, progressInterval int, notify func(string, string)) ([]string, map[string]string, map[string]string, map[string]map[string]string) {
 	if len(candidates) == 0 {
-		return candidates, make(map[string]string), make(map[string]map[string]string)
+		return candidates, make(map[string]string), make(map[string]string), make(map[string]map[string]string)
 	}
 
 	for attempt := 1; attempt <= retryMax; attempt++ {
 		fmt.Printf("\n[可用性检测] 第 %d 轮检测...\n", attempt)
-		passed, ipInfo, exitDetails := FilterCandidates(candidates, apiURL, connectTimeout, readTimeout, innerRetryEnabled, innerRetryMax, innerRetryDelay, workers, progressInterval)
+		passed, ipInfo, countryInfo, exitDetails := FilterCandidates(candidates, apiURL, connectTimeout, readTimeout, innerRetryEnabled, innerRetryMax, innerRetryDelay, workers, progressInterval)
 		if len(passed) > 0 {
 			fmt.Printf("可用性检测通过 %d 个节点\n", len(passed))
-			return passed, ipInfo, exitDetails
+			return passed, ipInfo, countryInfo, exitDetails
 		}
 		if attempt < retryMax {
 			fmt.Printf("本轮可用性检测通过率为 0%%，等待 %.0f 秒后重试...\n", retryDelay)
@@ -184,5 +188,5 @@ func FilterWithRetry(candidates []string, apiURL string, connectTimeout, readTim
 	if notify != nil {
 		notify(msg, "可用性检测全部失败")
 	}
-	return candidates, make(map[string]string), make(map[string]map[string]string)
+	return candidates, make(map[string]string), make(map[string]string), make(map[string]map[string]string)
 }

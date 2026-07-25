@@ -7,183 +7,401 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>CFNB - Cloudflare IP 优选工具</title>
 <style>
+:root {
+  --bg-primary: #0a0e14;
+  --bg-card: #111820;
+  --bg-elevated: #182230;
+  --border: #1e2d45;
+  --border-focus: #3b82f6;
+  --text-primary: #e2e8f0;
+  --text-secondary: #8899aa;
+  --text-muted: #4a5a6a;
+  --accent-blue: #3b82f6;
+  --accent-cyan: #06b6d4;
+  --accent-green: #22c55e;
+  --accent-amber: #f59e0b;
+  --accent-red: #ef4444;
+  --accent-purple: #8b5cf6;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --shadow: 0 1px 3px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.2);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', 'Helvetica Neue', sans-serif; background: #0d1117; color: #c9d1d9; min-height: 100vh; min-height: 100dvh; padding: 0; margin: 0; }
-.container { max-width: 1200px; margin: 0 auto; padding: 12px 16px; }
-.header { text-align: center; padding: 24px 0 16px; }
-.header h1 { font-size: 26px; color: #f0f6fc; margin-bottom: 6px; }
-.header p { color: #8b949e; font-size: 13px; }
-.controls { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
-.controls .config-group { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8b949e; flex-wrap: wrap; }
-.controls .config-group label { white-space: nowrap; }
-.controls .config-group input, .controls .config-group select { padding: 4px 8px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #c9d1d9; font-size: 12px; outline: none; width: 70px; }
-.controls .config-group select { width: auto; }
-.controls .config-group input:focus, .controls .config-group select:focus { border-color: #58a6ff; }
-.btn { padding: 10px 20px; border: 1px solid #30363d; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all .2s; background: #21262d; color: #c9d1d9; -webkit-user-select: none; user-select: none; }
-.btn:hover:not(:disabled) { background: #30363d; border-color: #8b949e; }
-.btn-primary { background: #238636; border-color: #238636; color: #fff; }
-.btn-primary:hover:not(:disabled) { background: #2ea043; border-color: #2ea043; }
-.btn:disabled { opacity: .5; cursor: not-allowed; }
-.progress-bar { flex: 1; min-width: 140px; height: 6px; background: #21262d; border-radius: 3px; overflow: hidden; }
-.progress-fill { height: 100%; background: linear-gradient(90deg, #238636, #2ea043); border-radius: 3px; transition: width .5s ease; width: 0; }
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 16px; }
-.card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px; }
-.card-label { font-size: 11px; color: #8b949e; margin-bottom: 4px; }
-.card-value { font-size: 22px; font-weight: 700; color: #f0f6fc; }
-.card-value.speed { color: #58a6ff; }
-.card-value.latency { color: #3fb950; }
-.card-value.count { color: #d29922; }
-.phase-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
-.phase-tag { padding: 3px 10px; border-radius: 10px; font-size: 11px; background: #21262d; border: 1px solid #30363d; color: #8b949e; }
-.phase-tag.active { background: #1f6feb22; border-color: #1f6feb; color: #58a6ff; }
-.phase-tag.done { background: #23863622; border-color: #238636; color: #3fb950; }
-.panels { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
-.panel { background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; }
-.panel-header { padding: 10px 14px; border-bottom: 1px solid #30363d; font-weight: 600; font-size: 13px; color: #f0f6fc; display: flex; align-items: center; justify-content: space-between; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', 'Helvetica Neue', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh; min-height: 100dvh;
+  background-image: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(59,130,246,.08), transparent),
+                    radial-gradient(ellipse 60% 50% at 80% 80%, rgba(6,182,212,.05), transparent);
+}
+
+.container { max-width: 1100px; margin: 0 auto; padding: 20px 20px 40px; }
+
+.header {
+  text-align: center; padding: 32px 0 20px;
+  position: relative;
+}
+.header::after {
+  content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 60px; height: 2px; background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+  border-radius: 1px;
+}
+.header h1 {
+  font-size: 28px; font-weight: 700; background: linear-gradient(135deg, #60a5fa, #22d3ee);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  margin-bottom: 8px; letter-spacing: -0.5px;
+}
+.header .subtitle { color: var(--text-secondary); font-size: 13px; font-weight: 400; }
+.badge {
+  display: inline-block; padding: 2px 10px; background: rgba(34,197,94,.15);
+  color: var(--accent-green); border-radius: 20px; font-size: 10px; font-weight: 600;
+  vertical-align: middle; -webkit-text-fill-color: var(--accent-green);
+  border: 1px solid rgba(34,197,94,.25);
+}
+
+.control-bar {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 12px 16px; box-shadow: var(--shadow);
+}
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 10px 22px;
+  border: none; border-radius: var(--radius-md); cursor: pointer; font-size: 14px; font-weight: 600;
+  transition: all .2s ease; -webkit-user-select: none; user-select: none;
+  background: var(--bg-elevated); color: var(--text-primary);
+}
+.btn:hover:not(:disabled) { background: #1e3348; transform: translateY(-1px); }
+.btn:active:not(:disabled) { transform: translateY(0); }
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-blue), #2563eb);
+  color: #fff; box-shadow: 0 2px 8px rgba(59,130,246,.3);
+}
+.btn-primary:hover:not(:disabled) { box-shadow: 0 4px 14px rgba(59,130,246,.4); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-icon { font-size: 16px; line-height: 1; }
+
+.progress-wrap { flex: 1; min-width: 120px; }
+.progress-bar { height: 4px; background: var(--bg-elevated); border-radius: 4px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan)); border-radius: 4px; transition: width .4s ease; width: 0; }
+.status-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.status-dot.running { background: var(--accent-amber); animation: pulse 1s infinite; }
+.status-dot.idle { background: var(--text-muted); }
+.status-dot.done { background: var(--accent-green); }
+
+.config-section {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 16px 20px; margin-bottom: 16px; box-shadow: var(--shadow);
+}
+.config-title {
+  font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;
+  letter-spacing: .5px; margin-bottom: 12px;
+}
+.config-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px;
+}
+.config-item {
+  display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center;
+}
+.config-item label { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+.config-item input, .config-item select {
+  padding: 6px 10px; background: var(--bg-primary); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-primary); font-size: 12px; outline: none;
+  width: 100%; min-width: 60px; transition: border-color .2s;
+}
+.config-item input:focus, .config-item select:focus { border-color: var(--border-focus); }
+.config-item select { cursor: pointer; }
+.config-item input[type=number] { width: 100%; }
+textarea:focus { border-color: var(--border-focus) !important; }
+
+.toggle-row {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+}
+.toggle-group {
+  display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary);
+}
+.toggle { position:relative; display:inline-block; width:34px; height:19px; flex-shrink:0; }
+.toggle input { opacity:0; width:0; height:0; }
+.toggle .slider {
+  position:absolute; cursor:pointer; inset:0; background: var(--bg-elevated);
+  border-radius: 19px; transition: .25s; border: 1px solid var(--border);
+}
+.toggle .slider::before {
+  content:''; position:absolute; height:13px; width:13px; left:2px; bottom:2px;
+  background: var(--text-muted); border-radius: 50%; transition: .25s;
+}
+.toggle input:checked + .slider { background: rgba(59,130,246,.2); border-color: var(--accent-blue); }
+.toggle input:checked + .slider::before { transform:translateX(15px); background: var(--accent-blue); }
+
+.phase-strip {
+  display: flex; gap: 4px; margin-bottom: 16px; overflow-x: auto;
+  padding: 2px; -webkit-overflow-scrolling: touch;
+}
+.phase-tag {
+  flex: 1; text-align: center; padding: 6px 8px; border-radius: var(--radius-sm);
+  font-size: 11px; font-weight: 500; background: var(--bg-card);
+  color: var(--text-muted); white-space: nowrap; border: 1px solid var(--border);
+  transition: all .3s; min-width: 0;
+}
+.phase-tag.active {
+  background: rgba(59,130,246,.12); border-color: var(--accent-blue); color: var(--accent-blue);
+}
+.phase-tag.done {
+  background: rgba(34,197,94,.1); border-color: rgba(34,197,94,.25); color: var(--accent-green);
+}
+
+.stats-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px;
+}
+.stat-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: 14px 16px; box-shadow: var(--shadow);
+}
+.stat-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .3px; }
+.stat-value { font-size: 22px; font-weight: 700; }
+.stat-value.speed { color: var(--accent-blue); }
+.stat-value.latency { color: var(--accent-green); }
+.stat-value.count { color: var(--accent-amber); }
+
+.panels {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;
+}
+.panel {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  overflow: hidden; box-shadow: var(--shadow);
+}
+.panel-header {
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px;
+}
+.panel-header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-cyan); }
 .panel-body { padding: 12px; max-height: 360px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.log-line { font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace; font-size: 11px; padding: 2px 0; color: #8b949e; line-height: 1.5; word-break: break-all; }
-.log-line.info { color: #58a6ff; }
-.log-line.success { color: #3fb950; }
-.log-line.warn { color: #d29922; }
-.log-line.error { color: #f85149; }
-.table-wrap { background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; }
-.table-header { padding: 10px 14px; border-bottom: 1px solid #30363d; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.table-header input { margin-left: auto; padding: 4px 8px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #c9d1d9; font-size: 12px; width: 160px; outline: none; }
-.table-header input:focus { border-color: #58a6ff; }
+.panel-body::-webkit-scrollbar { width: 4px; }
+.panel-body::-webkit-scrollbar-track { background: transparent; }
+.panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.log-line {
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 11px; padding: 3px 0; color: var(--text-secondary); line-height: 1.5; word-break: break-all;
+}
+.log-line.info { color: var(--accent-blue); }
+.log-line.success { color: var(--accent-green); }
+.log-line.warn { color: var(--accent-amber); }
+.log-line.error { color: var(--accent-red); }
+
+.table-wrap {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  overflow: hidden; box-shadow: var(--shadow);
+}
+.table-toolbar {
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.table-toolbar .title { font-weight: 600; font-size: 13px; color: var(--text-primary); }
+.table-toolbar .search {
+  margin-left: auto; padding: 5px 10px; background: var(--bg-primary);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--text-primary); font-size: 12px; width: 160px; outline: none;
+  transition: border-color .2s;
+}
+.table-toolbar .search:focus { border-color: var(--border-focus); }
+.table-scroll { max-height: 480px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll::-webkit-scrollbar { width: 4px; }
+.table-scroll::-webkit-scrollbar-track { background: transparent; }
+.table-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
 table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 8px 12px; background: #21262d; font-size: 11px; font-weight: 600; color: #8b949e; border-bottom: 1px solid #30363d; cursor: pointer; -webkit-user-select: none; user-select: none; }
-th:hover { color: #c9d1d9; }
-td { padding: 8px 12px; border-bottom: 1px solid #21262d; font-size: 12px; }
-tr:hover td { background: #1c2128; }
-.speed-bar { display: inline-block; height: 4px; background: #58a6ff; border-radius: 2px; vertical-align: middle; margin-left: 6px; }
-.empty-state { text-align: center; padding: 40px 16px; color: #484f58; }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
-.status-dot.running { background: #d29922; animation: pulse 1s infinite; }
-.status-dot.idle { background: #484f58; }
-.status-dot.done { background: #3fb950; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+th {
+  text-align: left; padding: 9px 12px; background: var(--bg-elevated);
+  font-size: 11px; font-weight: 600; color: var(--text-secondary);
+  border-bottom: 1px solid var(--border); cursor: pointer; -webkit-user-select: none; user-select: none;
+  position: sticky; top: 0; z-index: 1;
+}
+th:hover { color: var(--text-primary); }
+td { padding: 9px 12px; border-bottom: 1px solid rgba(30,45,69,.5); font-size: 12px; }
+tr:hover td { background: rgba(59,130,246,.03); }
+tr:last-child td { border-bottom: none; }
+.speed-bar {
+  display: inline-block; height: 4px; border-radius: 3px; vertical-align: middle;
+  margin-left: 8px; background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+}
+.empty-state { text-align: center; padding: 36px 16px; color: var(--text-muted); }
+.empty-state p { font-size: 13px; }
+.result-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; padding: 12px; }
+.result-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; transition: border-color .2s; }
+.result-card:hover { border-color: var(--accent-blue); }
+.card-ip-line {
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 14px; padding-bottom: 12px; margin-bottom: 12px;
+  border-bottom: 1px solid var(--border); display: flex; align-items: center; flex-wrap: wrap;
+}
+.card-ip-line .rank { color: var(--accent-blue); font-weight: 700; margin-right: 8px; }
+.card-ip-line .ip { color: var(--accent-blue); font-weight: 700; cursor: pointer; }
+.card-ip-line .ip:hover { text-decoration: underline; }
+.card-ip-line .sep { color: var(--text-muted); }
+.card-ip-line .port { color: var(--accent-amber); font-weight: 700; margin-left: 4px; }
+.card-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.card-stat { display: flex; font-size: 12px; color: var(--text-secondary); }
+.card-stat .label { color: var(--text-muted); width: 80px; flex-shrink: 0; }
+.card-stat .value { color: var(--text-primary); font-weight: 500; }
+.card-stat .value.blue { color: var(--accent-blue); }
+.card-stat .value.green { color: var(--accent-green); }
+.card-stat .value.amber { color: var(--accent-amber); }
+.card-stat .value.purple { color: var(--accent-purple); }
+.card-stat .value.cyan { color: var(--accent-cyan); }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn .35s ease both; }
 
 @media (max-width: 768px) {
-  .panels { grid-template-columns: 1fr; }
-  .cards { grid-template-columns: repeat(2, 1fr); }
-  .controls { flex-direction: column; align-items: stretch; }
-  .controls .config-group { flex-wrap: wrap; }
   .container { padding: 12px; }
-  .panel-body { max-height: 280px; }
+  .header { padding: 20px 0 16px; }
   .header h1 { font-size: 22px; }
+  .config-grid { grid-template-columns: 1fr; gap: 8px; }
+  .panels { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .control-bar { flex-direction: column; align-items: stretch; }
+  .panel-body { max-height: 260px; }
+  .table-toolbar .search { width: 120px; }
+  .phase-strip { gap: 3px; }
+  .phase-tag { font-size: 10px; padding: 4px 6px; }
 }
 </style>
 </head>
 <body>
 <div class="container">
   <div class="header">
-    <h1>CFNB <span class="badge" style="display:inline-block;padding:2px 8px;background:#238636;color:#fff;border-radius:12px;font-size:11px;vertical-align:middle">v2.0 Go</span></h1>
-    <p>Cloudflare CDN IP 优选工具 - 自动节点筛选与测速</p>
+    <h1>CFNB <span class="badge">v2.0 Go</span></h1>
+    <p class="subtitle">Cloudflare CDN IP 优选工具 — 自动节点筛选与测速</p>
   </div>
 
-  <div class="controls">
+  <div class="control-bar">
     <button class="btn btn-primary" id="runBtn" onclick="startPipeline()">
-      <span id="runIcon">&#9654;</span> <span id="runText">开始测速</span>
+      <span class="btn-icon" id="runIcon">&#9654;</span> <span id="runText">开始测速</span>
     </button>
-    <div class="progress-bar">
-      <div class="progress-fill" id="progressFill"></div>
-    </div>
-    <span style="font-size:12px;color:#8b949e" id="statusText">
-      <span class="status-dot idle"></span> 就绪
-    </span>
-  </div>
-
-  <div class="controls" style="margin-top:0">
-    <div class="config-group">
-      <label>测速文件</label>
-      <select id="cfgBandwidthSize" onchange="saveConfig()">
-        <option value="1">1 MB</option>
-        <option value="5">5 MB</option>
-        <option value="10">10 MB</option>
-        <option value="25">25 MB</option>
-        <option value="50">50 MB</option>
-        <option value="100">100 MB</option>
-      </select>
-      <label>候选数</label>
-      <input type="number" id="cfgCandidates" value="150" min="10" max="500" onchange="saveConfig()">
-      <label>模式</label>
-      <select id="cfgMode" onchange="saveConfig()">
-        <option value="global">全局最优</option>
-        <option value="percountry">按国家最优</option>
-      </select>
-      <label>TCP探测</label>
-      <input type="number" id="cfgTCPProbes" value="1" min="1" max="10" onchange="saveConfig()">
-      <label>测速并发</label>
-      <input type="number" id="cfgBWWorkers" value="3" min="1" max="50" onchange="saveConfig()">
+    <button class="btn" id="stopBtn" onclick="stopPipeline()" style="display:none;background:rgba(239,68,68,.15);color:var(--accent-red);border:1px solid rgba(239,68,68,.3)">
+      <span class="btn-icon">&#9632;</span> 终止
+    </button>
+    <div class="progress-wrap">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="status-row" id="statusText">
+        <span class="status-dot idle"></span> 就绪
+      </div>
     </div>
   </div>
 
-  <div class="phase-tags" id="phases">
-    <span class="phase-tag">1. 获取数据源</span>
-    <span class="phase-tag">2. TCP 测试</span>
-    <span class="phase-tag">3. 可用性筛选</span>
-    <span class="phase-tag">4. HTTP 检测</span>
-    <span class="phase-tag">5. 带宽测速</span>
-    <span class="phase-tag">6. 完成</span>
+  <div class="config-section">
+    <div class="config-title">参数配置</div>
+    <div class="config-grid">
+      <div class="config-item">
+        <label>测速文件</label>
+        <select id="cfgBandwidthSize" onchange="saveConfig()">
+          <option value="1">1 MB</option>
+          <option value="5">5 MB</option>
+          <option value="10">10 MB</option>
+          <option value="25">25 MB</option>
+          <option value="50">50 MB</option>
+          <option value="100">100 MB</option>
+        </select>
+        <label>候选数</label>
+        <input type="number" id="cfgCandidates" value="150" min="10" max="500" onchange="saveConfig()">
+        <label>模式</label>
+        <select id="cfgMode" onchange="saveConfig()">
+          <option value="global">全局最优</option>
+          <option value="percountry">按国家最优</option>
+        </select>
+        <label>全局保留</label>
+        <input type="number" id="cfgGlobalTopN" value="15" min="1" max="100" onchange="saveConfig()">
+        <label>每国保留</label>
+        <input type="number" id="cfgPerCountryTopN" value="1" min="1" max="50" onchange="saveConfig()">
+      </div>
+      <div class="config-item">
+        <label>TCP探测</label>
+        <input type="number" id="cfgTCPProbes" value="1" min="1" max="10" onchange="saveConfig()">
+        <label>TCP并发</label>
+        <input type="number" id="cfgTCPWorkers" value="300" min="10" max="1000" onchange="saveConfig()">
+        <label>测速并发</label>
+        <input type="number" id="cfgBWWorkers" value="3" min="1" max="50" onchange="saveConfig()">
+      </div>
+    </div>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <div class="toggle-row" style="margin-bottom:10px">
+        <div class="toggle-group">
+          <span>IP 可用性筛选</span>
+          <label class="toggle"><input type="checkbox" id="cfgAvailability" checked onchange="saveConfig()"><span class="slider"></span></label>
+        </div>
+        <div class="toggle-group">
+          <span>HTTP 检测</span>
+          <label class="toggle"><input type="checkbox" id="cfgHTTPTest" checked onchange="saveConfig()"><span class="slider"></span></label>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">数据源 URL（每行一个）</label>
+        <textarea id="cfgSources" rows="2" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;resize:vertical;font-family:monospace;transition:border-color .2s" onchange="saveConfig()">https://zip.cm.edu.kg/all.txt</textarea>
+      </div>
+    </div>
   </div>
 
-  <div class="cards" id="statsCards">
-    <div class="card">
-      <div class="card-label">总节点数</div>
-      <div class="card-value count" id="statNodes">-</div>
+  <div class="phase-strip" id="phases">
+    <span class="phase-tag">获取数据源</span>
+    <span class="phase-tag">TCP 测试</span>
+    <span class="phase-tag">可用性筛选</span>
+    <span class="phase-tag">HTTP 检测</span>
+    <span class="phase-tag">带宽测速</span>
+    <span class="phase-tag">完成</span>
+  </div>
+
+  <div class="stats-grid" id="statsCards">
+    <div class="stat-card">
+      <div class="stat-label">总节点数</div>
+      <div class="stat-value count" id="statNodes">-</div>
     </div>
-    <div class="card">
-      <div class="card-label">总带宽</div>
-      <div class="card-value speed" id="statBW">-</div>
+    <div class="stat-card">
+      <div class="stat-label">总带宽</div>
+      <div class="stat-value speed" id="statBW">-</div>
     </div>
-    <div class="card">
-      <div class="card-label">最快速度</div>
-      <div class="card-value speed" id="statBestSpeed">-</div>
+    <div class="stat-card">
+      <div class="stat-label">最快速度</div>
+      <div class="stat-value speed" id="statBestSpeed">-</div>
     </div>
-    <div class="card">
-      <div class="card-label">平均延迟</div>
-      <div class="card-value latency" id="statLatency">-</div>
+    <div class="stat-card">
+      <div class="stat-label">平均延迟</div>
+      <div class="stat-value latency" id="statLatency">-</div>
     </div>
   </div>
 
   <div class="panels">
     <div class="panel">
-      <div class="panel-header">终端输出</div>
+      <div class="panel-header"><span class="dot"></span> 终端输出</div>
       <div class="panel-body" id="logPanel">
-        <div class="empty-state" style="padding:30px">
-          <p>点击「开始测速」启动管道</p>
-        </div>
+        <div class="empty-state"><p>点击「开始测速」启动管道</p></div>
       </div>
     </div>
     <div class="panel">
-      <div class="panel-header">管道状态</div>
+      <div class="panel-header"><span class="dot"></span> 管道状态</div>
       <div class="panel-body" id="statusPanel">
-        <div class="empty-state" style="padding:30px">
-          <p>等待管道启动...</p>
-        </div>
+        <div class="empty-state"><p>等待管道启动...</p></div>
       </div>
     </div>
   </div>
 
   <div class="table-wrap" id="resultsTable" style="display:none">
-    <div class="table-header">
-      <span style="color:#f0f6fc">优选节点</span>
-      <input type="text" placeholder="搜索国家或 IP..." id="filterInput" oninput="filterTable()">
+    <div class="table-toolbar">
+      <span class="title">优选节点</span>
+      <button class="btn" id="copyBtn" onclick="copyAllIPs()" style="font-size:11px;padding:4px 12px;margin-left:4px">&#128203; 复制</button>
+      <input type="text" class="search" placeholder="搜索国家或 IP..." id="filterInput" oninput="filterTable()">
     </div>
-    <div style="max-height:480px;overflow-y:auto;-webkit-overflow-scrolling:touch">
-      <table>
-        <thead>
-          <tr>
-            <th onclick="sortTable(0)">#</th>
-            <th onclick="sortTable(1)">IP 地址</th>
-            <th onclick="sortTable(2)">国家</th>
-            <th onclick="sortTable(3)">速度 (Mbps)</th>
-            <th onclick="sortTable(4)">延迟 (ms)</th>
-          </tr>
-        </thead>
-        <tbody id="tableBody"></tbody>
-      </table>
-    </div>
+    <div class="table-scroll" id="resultCards"></div>
   </div>
 </div>
 
@@ -204,8 +422,14 @@ function saveConfig() {
     bandwidthSize: parseFloat(document.getElementById('cfgBandwidthSize').value),
     candidates: parseInt(document.getElementById('cfgCandidates').value) || 150,
     mode: document.getElementById('cfgMode').value,
+    globalTopN: parseInt(document.getElementById('cfgGlobalTopN').value) || 15,
+    perCountryTopN: parseInt(document.getElementById('cfgPerCountryTopN').value) || 1,
     tcpProbes: parseInt(document.getElementById('cfgTCPProbes').value) || 1,
-    bandwidthWorkers: parseInt(document.getElementById('cfgBWWorkers').value) || 3
+    tcpWorkers: parseInt(document.getElementById('cfgTCPWorkers').value) || 300,
+    bandwidthWorkers: parseInt(document.getElementById('cfgBWWorkers').value) || 3,
+    testAvailability: document.getElementById('cfgAvailability').checked,
+    httpTestEnabled: document.getElementById('cfgHTTPTest').checked,
+    sourceURLs: document.getElementById('cfgSources').value.split('\n').map(s => s.trim()).filter(s => s)
   };
   localStorage.setItem('cfnbConfig', JSON.stringify(cfg));
 }
@@ -217,8 +441,14 @@ function loadConfig() {
       document.getElementById('cfgBandwidthSize').value = saved.bandwidthSize || 1;
       document.getElementById('cfgCandidates').value = saved.candidates || 150;
       document.getElementById('cfgMode').value = saved.mode || 'global';
+      document.getElementById('cfgGlobalTopN').value = saved.globalTopN || 15;
+      document.getElementById('cfgPerCountryTopN').value = saved.perCountryTopN || 1;
       document.getElementById('cfgTCPProbes').value = saved.tcpProbes || 1;
+      document.getElementById('cfgTCPWorkers').value = saved.tcpWorkers || 300;
       document.getElementById('cfgBWWorkers').value = saved.bandwidthWorkers || 3;
+      if (saved.testAvailability !== undefined) document.getElementById('cfgAvailability').checked = saved.testAvailability;
+      if (saved.httpTestEnabled !== undefined) document.getElementById('cfgHTTPTest').checked = saved.httpTestEnabled;
+      if (saved.sourceURLs && Array.isArray(saved.sourceURLs) && saved.sourceURLs.length > 0) document.getElementById('cfgSources').value = saved.sourceURLs.join('\n');
     }
   } catch(e) {}
 }
@@ -229,13 +459,26 @@ function startPipeline() {
     bandwidthSize: parseFloat(document.getElementById('cfgBandwidthSize').value),
     candidates: parseInt(document.getElementById('cfgCandidates').value) || 150,
     mode: document.getElementById('cfgMode').value,
+    globalTopN: parseInt(document.getElementById('cfgGlobalTopN').value) || 15,
+    perCountryTopN: parseInt(document.getElementById('cfgPerCountryTopN').value) || 1,
     tcpProbes: parseInt(document.getElementById('cfgTCPProbes').value) || 1,
-    bandwidthWorkers: parseInt(document.getElementById('cfgBWWorkers').value) || 3
+    tcpWorkers: parseInt(document.getElementById('cfgTCPWorkers').value) || 300,
+    bandwidthWorkers: parseInt(document.getElementById('cfgBWWorkers').value) || 3,
+    testAvailability: document.getElementById('cfgAvailability').checked,
+    httpTestEnabled: document.getElementById('cfgHTTPTest').checked,
+    sourceURLs: document.getElementById('cfgSources').value.split('\n').map(s => s.trim()).filter(s => s)
   };
   fetch('/api/run', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(cfg) })
     .then(r => r.json())
     .then(d => { if (!d.ok) alert('管道正在运行中'); })
     .catch(e => alert('启动失败: ' + e));
+}
+
+function stopPipeline() {
+  fetch('/api/stop', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => { if (!d.ok) alert(d.msg); })
+    .catch(e => alert('终止失败: ' + e));
 }
 
 function connectSSE() {
@@ -253,6 +496,7 @@ function connectSSE() {
 
 function updateUI(s) {
   const btn = document.getElementById('runBtn');
+  const stopBtn = document.getElementById('stopBtn');
   const icon = document.getElementById('runIcon');
   const text = document.getElementById('runText');
   const st = document.getElementById('statusText');
@@ -260,6 +504,8 @@ function updateUI(s) {
 
   if (s.running) {
     btn.disabled = true;
+    stopBtn.style.display = '';
+    icon.innerHTML = '&#9654;';
     text.textContent = '运行中...';
     st.innerHTML = '<span class="status-dot running"></span> ' + (s.progress || '运行中');
     fill.style.width = estimateProgress(s.progress) + '%';
@@ -270,13 +516,17 @@ function updateUI(s) {
     }
   } else if (s.results) {
     btn.disabled = false;
-    text.textContent = '开始测速';
+    stopBtn.style.display = 'none';
+    icon.innerHTML = '&#8635;';
+    text.textContent = '重新测速';
     st.innerHTML = '<span class="status-dot done"></span> 完成';
     fill.style.width = '100%';
     setPhase(phases.length);
     showResults(s.results);
   } else {
     btn.disabled = false;
+    stopBtn.style.display = 'none';
+    icon.innerHTML = '&#9654;';
     text.textContent = '开始测速';
     st.innerHTML = '<span class="status-dot idle"></span> 就绪';
   }
@@ -301,9 +551,13 @@ function updateLogs(logs) {
     const div = document.createElement('div');
     div.className = 'log-line';
     if (l.includes('ERROR') || l.includes('错误')) div.className += ' error';
+    else if (l.includes('带宽测速') || (l.includes('带宽') && l.includes('进度'))) div.className += ' success';
+    else if (l.includes('HTTP')) div.className += ' info';
+    else if (l.includes('可用性')) div.className += ' warn';
+    else if (l.includes('TCP') || l.includes('tcp')) div.className += ' error';
     else if (l.includes('成功') || l.includes('完成') || l.includes('通过')) div.className += ' success';
     else if (l.includes('进度') || l.includes('Phase') || l.includes('开始')) div.className += ' info';
-    else if (l.includes('失败') || l.includes('跳过') || l.includes('错误')) div.className += ' warn';
+    else if (l.includes('失败') || l.includes('跳过')) div.className += ' warn';
     div.textContent = l;
     panel.appendChild(div);
   });
@@ -315,26 +569,26 @@ function updateStatusPanel(s) {
   if (s.results && s.results.nodes) {
     const r = s.results;
     panel.innerHTML = `
-      <div style="margin-bottom:10px"><span style="color:#3fb950">&#10003;</span> <strong>管道完成</strong> - 已筛选 ${r.nodes.length} 个节点</div>
+      <div style="margin-bottom:10px;font-size:13px"><span style="color:var(--accent-green)">&#10003;</span> <strong>管道完成</strong> — 已筛选 ${r.nodes.length} 个节点</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div style="background:#21262d;padding:10px;border-radius:6px">
-          <div style="font-size:11px;color:#8b949e">总带宽</div>
-          <div style="font-size:18px;font-weight:700;color:#58a6ff">${r.totalBandwidth.toFixed(1)} Mbps</div>
+        <div style="background:var(--bg-elevated);padding:10px;border-radius:8px">
+          <div style="font-size:11px;color:var(--text-secondary)">总带宽</div>
+          <div style="font-size:18px;font-weight:700;color:var(--accent-blue)">${r.totalBandwidth.toFixed(1)} Mbps</div>
         </div>
-        <div style="background:#21262d;padding:10px;border-radius:6px">
-          <div style="font-size:11px;color:#8b949e">平均延迟</div>
-          <div style="font-size:18px;font-weight:700;color:#3fb950">${r.avgLatency.toFixed(1)} ms</div>
+        <div style="background:var(--bg-elevated);padding:10px;border-radius:8px">
+          <div style="font-size:11px;color:var(--text-secondary)">平均延迟</div>
+          <div style="font-size:18px;font-weight:700;color:var(--accent-green)">${r.avgLatency.toFixed(1)} ms</div>
         </div>
       </div>
     `;
   } else if (s.running) {
-    const phases = ['Phase 1/6: 获取数据源','Phase 2/6: TCP 测试','Phase 3/6: 可用性筛选','Phase 4/6: HTTP 检测','Phase 5/6: 带宽测速','Phase 6/6: 完成'];
-    panel.innerHTML = '<div style="display:flex;flex-direction:column;gap:6px">' +
-      phases.map((p,i) => {
-        let icon = '<span style="color:#30363d;margin-right:8px">&#9711;</span>';
-        if (s.progress && s.progress.includes(p.split(':')[0])) icon = '<span style="color:#d29922;margin-right:8px">&#9712;</span>';
-        if (s.progress && phases.some((pp,j) => j < i && s.progress.includes(pp.split(':')[0]))) icon = '<span style="color:#3fb950;margin-right:8px">&#10003;</span>';
-        return `<div style="font-size:12px;padding:6px;border-radius:4px;background:#21262d">${icon}${p}</div>`;
+    const labels = ['Phase 1/6: 获取数据源','Phase 2/6: TCP 测试','Phase 3/6: 可用性筛选','Phase 4/6: HTTP 检测','Phase 5/6: 带宽测速','Phase 6/6: 完成'];
+    panel.innerHTML = '<div style="display:flex;flex-direction:column;gap:5px">' +
+      labels.map((p,i) => {
+        let icon = '<span style="color:var(--text-muted);margin-right:8px">&#9679;</span>';
+        if (s.progress && s.progress.includes(p.split(':')[0])) icon = '<span style="color:var(--accent-amber);margin-right:8px">&#9672;</span>';
+        if (s.progress && labels.some((pp,j) => j < i && s.progress.includes(pp.split(':')[0]))) icon = '<span style="color:var(--accent-green);margin-right:8px">&#10003;</span>';
+        return `<div style="font-size:12px;padding:6px 10px;border-radius:6px;background:var(--bg-elevated)">${icon}${p}</div>`;
       }).join('') + '</div>';
   }
 }
@@ -346,35 +600,85 @@ function showResults(r) {
   document.getElementById('statBW').textContent = r.totalBandwidth.toFixed(1) + ' Mbps';
   document.getElementById('statBestSpeed').textContent = (r.nodes.length > 0 ? Math.max(...r.nodes.map(n => n.speed || 0)).toFixed(1) : 0) + ' Mbps';
   document.getElementById('statLatency').textContent = r.avgLatency.toFixed(1) + ' ms';
-  renderTable(r.nodes);
+  renderCards(r.nodes, r.totalTime);
 }
 
-function renderTable(nodes) {
-  const tbody = document.getElementById('tableBody');
+function renderCards(nodes, totalTime) {
+  const container = document.getElementById('resultCards');
   const filter = (document.getElementById('filterInput').value || '').toLowerCase();
   let filtered = nodes;
   if (filter) {
     filtered = nodes.filter(n => n.node.toLowerCase().includes(filter) || (n.ccTag && n.ccTag.toLowerCase().includes(filter)) || (n.country && n.country.toLowerCase().includes(filter)));
   }
 
-  tbody.innerHTML = filtered.map((n, i) => {
-    const speeds = nodes.map(x => x.speed || 0);
-    const maxSpeed = speeds.length > 0 ? Math.max(...speeds) : 1;
-    const barW = maxSpeed > 0 ? Math.min(100, (n.speed / maxSpeed) * 100) : 0;
-    return `<tr>
-      <td style="color:#484f58">${i + 1}</td>
-      <td style="font-family:monospace;color:#f0f6fc">${escapeHtml(n.node.split('#')[0] || n.node)}</td>
-      <td>${n.country || n.ccTag || '-'}</td>
-      <td><span style="color:#58a6ff;font-weight:600">${n.speed.toFixed(1)}</span><span class="speed-bar" style="width:${barW * 0.5}%"></span></td>
-      <td style="color:#c9d1d9">${n.latency > 0 ? n.latency.toFixed(1) + ' ms' : '-'}</td>
-    </tr>`;
-  }).join('');
+  function fmt(v) { return v > 0 ? v.toFixed(1) : '-'; }
+  function fmtSpeed(v) {
+    if (v <= 0) return '-';
+    if (v >= 1) return v.toFixed(1) + ' Mb/s';
+    return (v * 1000).toFixed(0) + ' Kb/s';
+  }
+  function fmtPeakSpeed(v) {
+    if (v <= 0) return '-';
+    return (v * 1000).toFixed(0) + ' Kb/s';
+  }
+  function fmtTime(sec) {
+    if (!sec || sec <= 0) return '-';
+    if (sec < 60) return sec.toFixed(0) + 's';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return m + 'm ' + s + 's';
+  }
+  function fmtDC(n) {
+    const colo = n.coloCode || '';
+    const cc = n.countryCode || '';
+    if (colo && cc) return colo + '-' + cc;
+    if (colo) return colo;
+    return cc || n.country || '-';
+  }
+
+  container.innerHTML = '<div class="result-cards">' +
+    filtered.map((n, i) => {
+      const ip = escapeHtml(n.node.split('#')[0] || n.node);
+      const [host, port] = ip.includes(':') ? [ip.split(':')[0], ip.split(':')[1]] : [ip, ''];
+      return `<div class="result-card fade-in" style="animation-delay:${Math.min(i*20,250)}ms">
+        <div class="card-ip-line">
+          <span class="rank">#${i + 1}</span>
+          <span class="ip">${escapeHtml(host)}</span>
+          <span class="sep">:</span>
+          <span class="port">${escapeHtml(port)}</span>
+        </div>
+        <div class="card-stats">
+          <div class="card-stat"><span class="label">实测带宽</span><span class="value blue">${fmtSpeed(n.speed)}</span></div>
+          <div class="card-stat"><span class="label">往返延迟</span><span class="value green">${fmt(n.latency)} ms</span></div>
+          <div class="card-stat"><span class="label">HTTP延迟</span><span class="value amber">${fmt(n.httpLatency)} ms</span></div>
+          <div class="card-stat"><span class="label">HTTP抖动</span><span class="value amber">${fmt(n.httpJitter)} ms</span></div>
+          <div class="card-stat"><span class="label">峰值速度</span><span class="value purple">${fmtPeakSpeed(n.peakSpeed)}</span></div>
+          <div class="card-stat"><span class="label">数据中心</span><span class="value cyan">${fmtDC(n)}</span></div>
+        </div>
+      </div>`;
+    }).join('') + '</div>';
+}
+
+function copyAllIPs() {
+  if (!results || !results.nodes) return;
+  const text = results.nodes.map(n => {
+    const ip = (n.node.split('#')[0] || n.node);
+    const colo = n.coloCode || '';
+    const cc = n.countryCode || '';
+    const dc = colo && cc ? colo + '-' + cc : (colo || cc || n.country || '');
+    return ip + '#' + dc;
+  }).join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = '\u2713 \u5df2\u590d\u5236';
+    setTimeout(() => { btn.innerHTML = '\uD83D\uDCCB \u590d\u5236'; }, 1500);
+  }).catch(() => {});
 }
 
 function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function filterTable() {
-  if (results) renderTable(results.nodes);
+  if (results) renderCards(results.nodes, results.totalTime);
 }
 
 function sortTable(col) {
@@ -383,7 +687,7 @@ function sortTable(col) {
   if (!results) return;
 
   const nodes = [...results.nodes];
-  const keys = ['node','node','ccTag','speed','latency'];
+  const keys = ['node','node','ccTag','speed','peakSpeed','latency'];
   nodes.sort((a,b) => {
     let va = a[keys[col]] || '', vb = b[keys[col]] || '';
     if (typeof va === 'string') va = va.toLowerCase();

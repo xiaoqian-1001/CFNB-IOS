@@ -12,9 +12,13 @@ import (
 	"time"
 )
 
+const peakWindow = 50 * time.Millisecond
+const minPeakWindow = 20 * time.Millisecond
+
 type Result struct {
-	Node  string
-	Speed float64
+	Node     string
+	Speed    float64
+	PeakMbps float64
 }
 
 func Measure(nodeStr string, bwURL string, connectTimeout, timeout, processBuffer, expectedSizeMB float64) Result {
@@ -69,14 +73,41 @@ func Measure(nodeStr string, bwURL string, connectTimeout, timeout, processBuffe
 
 		timeStartTransfer := time.Since(start).Seconds()
 
-		n, err := io.Copy(io.Discard, resp.Body)
-		if err != nil {
-			done <- Result{Node: nodeStr}
-			return
+		var totalBytes int64
+		peakMbps := 0.0
+		windowStart := time.Now()
+		windowBytes := int64(0)
+		buf := make([]byte, 256*1024)
+
+		for {
+			n, err := resp.Body.Read(buf)
+			if n > 0 {
+				totalBytes += int64(n)
+				windowBytes += int64(n)
+			}
+			elapsed := time.Since(windowStart)
+			if elapsed >= peakWindow || err != nil {
+				if elapsed >= minPeakWindow {
+					windowSpeed := float64(windowBytes) * 8 / (elapsed.Seconds() * 1000 * 1000)
+					if windowSpeed > peakMbps {
+						peakMbps = windowSpeed
+					}
+				}
+				windowStart = time.Now()
+				windowBytes = 0
+			}
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				done <- Result{Node: nodeStr}
+				return
+			}
 		}
+
 		timeTotal := time.Since(start).Seconds()
 
-		if n < int64(expectedSize) {
+		if totalBytes < int64(expectedSize) {
 			done <- Result{Node: nodeStr}
 			return
 		}
@@ -86,8 +117,8 @@ func Measure(nodeStr string, bwURL string, connectTimeout, timeout, processBuffe
 			done <- Result{Node: nodeStr}
 			return
 		}
-		speedMbps := (float64(n) * 8) / (transferTime * 1000 * 1000)
-		done <- Result{Node: nodeStr, Speed: speedMbps}
+		speedMbps := (float64(totalBytes) * 8) / (transferTime * 1000 * 1000)
+		done <- Result{Node: nodeStr, Speed: speedMbps, PeakMbps: peakMbps}
 	}()
 
 	select {

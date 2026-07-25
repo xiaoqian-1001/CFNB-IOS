@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"cfnb/pkg/availability"
 	"cfnb/pkg/bandwidth"
@@ -21,12 +22,19 @@ import (
 )
 
 type Result struct {
-	SelectedNodes []string
-	SpeedMap      map[string]float64
-	LatencyMap    map[string]float64
+	SelectedNodes  []string
+	SpeedMap       map[string]float64
+	PeakSpeedMap   map[string]float64
+	LatencyMap     map[string]float64
+	HTTPLatencyMap map[string]float64
+	HTTPJitterMap  map[string]float64
+	CountryInfo    map[string]string
+	ColoInfo       map[string]string
+	TotalTime      time.Duration
 }
 
 func Run(cfg *config.Config, output io.Writer) (*Result, error) {
+	startTime := time.Now()
 	log := func(format string, args ...interface{}) {
 		fmt.Fprintln(output, fmt.Sprintf(format, args...))
 	}
@@ -88,9 +96,11 @@ func Run(cfg *config.Config, output io.Writer) (*Result, error) {
 	candidates, countryNodes := selectCandidates(tcpResults, cfg, log)
 
 	availIPInfo := make(map[string]string)
+	availCountryInfo := make(map[string]string)
+	availColoInfo := make(map[string]string)
 	if cfg.TestAvailability {
 		var availExtra map[string]map[string]string
-		candidates, availIPInfo, availExtra = availability.FilterWithRetry(
+		candidates, availIPInfo, availCountryInfo, availExtra = availability.FilterWithRetry(
 			candidates,
 			cfg.AvailabilityCheckAPI,
 			cfg.AvailabilityConnectTimeout,
@@ -104,7 +114,11 @@ func Run(cfg *config.Config, output io.Writer) (*Result, error) {
 			cfg.ProgressPrintInterval,
 			notifier,
 		)
-		_ = availExtra
+		for node, info := range availExtra {
+			if colo, ok := info["colo"]; ok && colo != "" {
+				availColoInfo[node] = colo
+			}
+		}
 	}
 
 	httpLatencyMap := make(map[string]float64)
@@ -139,6 +153,7 @@ func Run(cfg *config.Config, output io.Writer) (*Result, error) {
 	)
 
 	speedMap := make(map[string]float64)
+	peakSpeedMap := make(map[string]float64)
 	var finalSelected []string
 
 	if len(bwResults) == 0 {
@@ -171,6 +186,7 @@ func Run(cfg *config.Config, output io.Writer) (*Result, error) {
 	} else {
 		for _, r := range bwResults {
 			speedMap[r.Node] = r.Speed
+			peakSpeedMap[r.Node] = r.PeakMbps
 		}
 
 		inputs := make([]ranking.ScoredNodeInput, len(bwResults))
@@ -202,9 +218,15 @@ func Run(cfg *config.Config, output io.Writer) (*Result, error) {
 	}
 
 	return &Result{
-		SelectedNodes: finalSelected,
-		SpeedMap:      speedMap,
-		LatencyMap:    latencyMap,
+		SelectedNodes:  finalSelected,
+		SpeedMap:       speedMap,
+		PeakSpeedMap:   peakSpeedMap,
+		LatencyMap:     latencyMap,
+		HTTPLatencyMap: httpLatencyMap,
+		HTTPJitterMap:  httpJitterMap,
+		CountryInfo:    availCountryInfo,
+		ColoInfo:       availColoInfo,
+		TotalTime:      time.Since(startTime),
 	}, nil
 }
 
