@@ -184,6 +184,13 @@ func handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type RunConfig struct {
+	BandwidthSize float64 `json:"bandwidthSize"`
+	Candidates    int     `json:"candidates"`
+	Mode          string  `json:"mode"`
+	TCPProbes     int     `json:"tcpProbes"`
+}
+
 func handleRun(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -200,13 +207,18 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 	mu.Unlock()
 	broadcast()
 
-	go runPipeline()
+	var rc RunConfig
+	if r.Body != nil {
+		json.NewDecoder(r.Body).Decode(&rc)
+	}
+
+	go runPipeline(rc)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
 }
 
-func runPipeline() {
+func runPipeline(rc RunConfig) {
 	defer func() {
 		mu.Lock()
 		status.Running = false
@@ -214,14 +226,29 @@ func runPipeline() {
 		broadcast()
 	}()
 
-	addLog("Starting CFNB Pipeline...")
+	addLog("开始 CFNB 管道...")
 	addLog("================================")
-	updateProgress("Phase 1/6: Fetching node sources...")
+	updateProgress("Phase 1/6: 获取数据源")
 
 	cfg, err := config.Load("config.json")
 	if err != nil {
-		addLog("ERROR: Cannot load config: " + err.Error())
+		addLog("错误: 无法加载配置文件: " + err.Error())
 		return
+	}
+
+	if rc.BandwidthSize > 0 {
+		cfg.BandwidthSizeMB = rc.BandwidthSize
+	}
+	if rc.Candidates > 0 {
+		cfg.BandwidthCandidates = rc.Candidates
+	}
+	if rc.TCPProbes > 0 {
+		cfg.TCPProbes = rc.TCPProbes
+	}
+	if rc.Mode == "percountry" {
+		cfg.UseGlobalMode = false
+	} else {
+		cfg.UseGlobalMode = true
 	}
 
 	pr, pw := io.Pipe()

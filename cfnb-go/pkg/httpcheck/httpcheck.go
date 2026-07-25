@@ -160,7 +160,7 @@ func FilterCandidates(candidates []string, timeout, connectTimeout float64, meth
 		}
 		now := time.Now()
 		if now.Sub(lastPrint) >= time.Duration(progressInterval)*time.Second || completed == total {
-			fmt.Printf("\r[HTTP检测] 进度：%d/%d (%.1f%%) 通过数量：%d", completed, total, float64(completed)/float64(total)*100, len(passed))
+			fmt.Printf("\n[HTTP检测] 进度：%d/%d (%.1f%%) 通过数量：%d", completed, total, float64(completed)/float64(total)*100, len(passed))
 			lastPrint = now
 		}
 	}

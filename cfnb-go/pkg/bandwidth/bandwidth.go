@@ -152,7 +152,7 @@ func Filter(candidates []string, bwURL string, connectTimeout, timeout, processB
 		}
 		now := time.Now()
 		if now.Sub(lastPrint) >= time.Duration(progressInterval)*time.Second || completed == total {
-			fmt.Printf("\r[带宽测速] 进度：%d/%d (%.1f%%)", completed, total, float64(completed)/float64(total)*100)
+			fmt.Printf("\n[带宽测速] 进度：%d/%d (%.1f%%)", completed, total, float64(completed)/float64(total)*100)
 			lastPrint = now
 		}
 	}
