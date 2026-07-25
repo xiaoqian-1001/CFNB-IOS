@@ -538,23 +538,24 @@ function importFile() {
     const isCSV = file.name.toLowerCase().endsWith('.csv');
     if (isCSV) {
       const lines = text.split('\n').filter(l => l.trim());
-      const converted = lines.map(line => {
-        const cols = line.split(',').map(s => s.trim().replace(/^"|"$/g, ''));
-        if (cols.length === 3) {
-          const ip = cols[0], port = cols[1], cc = cols[2];
-          if (cc && cc.length === 2) return ip + ':' + port + '#' + cc.toUpperCase();
-          return ip + ':' + port;
+      const converted = [];
+      for (let i = 0; i < lines.length; i++) {
+        const cols = lines[i].split(/[,，]/).map(s => s.trim().replace(/^"|"$/g, ''));
+        if (cols.length < 2) continue;
+        let ip = '', port = '', cc = '';
+        for (let j = 0; j < cols.length; j++) {
+          const v = cols[j];
+          if (/^\d+\.\d+\.\d+\.\d+$/.test(v)) ip = v;
+          else if (/^\d+$/.test(v) && v.length <= 5) port = v;
+          else if (/^[A-Z]{2}$/.test(v)) cc = v;
         }
-        if (cols.length === 2) {
-          if (cols[1].length === 2) {
-            if (cols[0].includes(':')) return cols[0] + '#' + cols[1].toUpperCase();
-            return cols[0] + ':' + cols[1];
-          }
-          return cols[0] + '#' + cols[1].toUpperCase();
+        if (ip && port) {
+          let line = ip + ':' + port;
+          if (cc) line += '#' + cc;
+          converted.push(line);
         }
-        return cols[0];
-      }).join('\n');
-      text = converted;
+      }
+      text = converted.join('\n');
     }
     const ta = document.getElementById('cfgDirectIPs');
     if (ta.value.trim()) {
