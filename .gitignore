@@ -3,3 +3,4 @@ libcfnb.a
 libcfnb.h
 cfnb-go/cfnb
 cfnb-go/server
+cfnb-go/cfnb-server
