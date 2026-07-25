@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -33,10 +34,14 @@ type Result struct {
 	TotalTime      time.Duration
 }
 
-func Run(cfg *config.Config, output io.Writer) (*Result, error) {
+func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, error) {
 	startTime := time.Now()
 	log := func(format string, args ...interface{}) {
 		fmt.Fprintln(output, fmt.Sprintf(format, args...))
+	}
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	if cfg.ForceDirect {
@@ -74,11 +79,17 @@ func Run(cfg *config.Config, output io.Writer) (*Result, error) {
 		log("没有获取到任何有效节点，退出。")
 		return nil, nil
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	nodes = prepFilter(nodes, cfg, log)
 	if len(nodes) == 0 {
 		log("过滤后无任何节点，退出。")
 		return nil, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	tcpResults := tcp.TestAll(nodes, cfg.Timeout, cfg.TCPProbes, cfg.MinSuccessRate, cfg.MaxWorkers, cfg.ProgressPrintInterval)
@@ -91,6 +102,9 @@ func Run(cfg *config.Config, output io.Writer) (*Result, error) {
 	latencyMap := make(map[string]float64)
 	for _, r := range tcpResults {
 		latencyMap[r.Node] = r.Latency
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	candidates, countryNodes := selectCandidates(tcpResults, cfg, log)
@@ -120,6 +134,9 @@ func Run(cfg *config.Config, output io.Writer) (*Result, error) {
 			}
 		}
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	httpLatencyMap := make(map[string]float64)
 	httpJitterMap := make(map[string]float64)
@@ -136,6 +153,9 @@ func Run(cfg *config.Config, output io.Writer) (*Result, error) {
 			cfg.HTTPTestRoundDelay,
 			notifier,
 		)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	bwResults := bandwidth.FilterWithRetry(

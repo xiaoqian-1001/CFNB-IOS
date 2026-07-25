@@ -379,7 +379,7 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 	var result *pipeline.Result
 	go func() {
 		defer restoreStdout()
-		r, err := pipeline.Run(cfg, io.MultiWriter(pw, outBuf))
+		r, err := pipeline.Run(ctx, cfg, io.MultiWriter(pw, outBuf))
 		result = r
 		pw.Close()
 		done <- err

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -15,7 +16,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	_, err = pipeline.Run(cfg, os.Stdout)
+	_, err = pipeline.Run(context.Background(), cfg, os.Stdout)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "pipeline error: %v\n", err)
 		os.Exit(1)
