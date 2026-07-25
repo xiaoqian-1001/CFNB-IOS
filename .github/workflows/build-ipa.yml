@@ -200,7 +200,7 @@ jobs:
           {
           	archiveVersion = 1;
           	classes = { };
-          	objectVersion = 56;
+          	objectVersion = 50;
           	objects = {
           
           /* Begin PBXBuildFile section */
@@ -218,6 +218,7 @@ jobs:
           		F1000201 = {
           			isa = PBXGroup;
           			children = (
+          				F1000104,
           				F1000301,
           			);
           			sourceTree = "<group>";
@@ -227,7 +228,6 @@ jobs:
           			children = (
           				F1000101,
           				F1000102,
-          				F1000104,
           			);
           			path = "";
           			sourceTree = "<group>";
@@ -257,7 +257,7 @@ jobs:
           			isa = PBXProject;
           			attributes = { BuildIndependentTargetsInParallel = 1; };
           			buildConfigurationList = F1000501;
-          			compatibilityVersion = "Xcode 14.0";
+          			compatibilityVersion = "Xcode 12";
           			developmentRegion = en;
           			hasScannedForEncodings = 0;
           			knownRegions = ( en, Base );
@@ -302,20 +302,26 @@ jobs:
           		F1000A01 /* Release */ = {
           			isa = XCBuildConfiguration;
           			buildSettings = {
-          				CODE_SIGN_IDENTITY = "";
-          				CODE_SIGN_STYLE = Manual;
-          				CURRENT_PROJECT_VERSION = 1;
-          				DEVELOPMENT_TEAM = "";
-          				GENERATE_INFOPLIST_FILE = NO;
-          				INFOPLIST_FILE = Info.plist;
+          				ALWAYS_SEARCH_USER_PATHS = NO;
+          				CLANG_ANALYZER_NONNULL = YES;
+          				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
+          				CLANG_ENABLE_MODULES = YES;
+          				CLANG_ENABLE_OBJC_ARC = YES;
+          				COPY_PHASE_STRIP = NO;
+          				DEBUG_INFORMATION_FORMAT = dwarf;
+          				GCC_C_LANGUAGE_STANDARD = gnu11;
+          				GCC_OPTIMIZATION_LEVEL = s;
+          				GCC_PREPROCESSOR_DEFINITIONS = (
+          					"DEBUG=1",
+          					"$(inherited)",
+          				);
+          				GCC_WARN_UNUSED_FUNCTION = YES;
+          				GCC_WARN_UNUSED_VARIABLE = YES;
           				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
-          				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-          				LINKER_DISPLAYS_MANGLED_NAMES = NO;
-          				PRODUCT_BUNDLE_IDENTIFIER = com.cfnb.app;
-          				PRODUCT_NAME = CFNB;
-          				SKIP_INSTALL = YES;
-          				SWIFT_EMIT_LOC_STRINGS = YES;
-          				SWIFT_VERSION = 5.0;
+          				MTL_ENABLE_DEBUG_INFO = NO;
+          				ONLY_ACTIVE_ARCH = YES;
+          				SDKROOT = iphoneos;
+          				SWIFT_COMPILATION_MODE = wholemodule;
           				TARGETED_DEVICE_FAMILY = "1,2";
           			};
           			name = Release;
@@ -323,36 +329,29 @@ jobs:
           		F1000902 = {
           			isa = XCBuildConfiguration;
           			buildSettings = {
-          				ALWAYS_SEARCH_USER_PATHS = NO;
-          				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-          				CLANG_ENABLE_MODULES = YES;
-          				CLANG_ENABLE_OBJC_ARC = YES;
-          				COPY_PHASE_STRIP = NO;
-          				DEBUG_INFORMATION_FORMAT = dwarf;
-          				ENABLE_STRICT_OBJC_MSGSEND = YES;
-          				GCC_C_LANGUAGE_STANDARD = gnu17;
-          				GCC_NO_COMMON_BLOCKS = YES;
-          				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-          				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
-          				MTL_ENABLE_DEBUG_INFO = NO;
-          				ONLY_ACTIVE_ARCH = YES;
-          				SDKROOT = iphoneos;
-          				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-          				OTHER_SWIFT_FLAGS = "$(inherited) -parse-as-library";
+          				CODE_SIGN_IDENTITY = "";
+          				CODE_SIGNING_REQUIRED = NO;
+          				CODE_SIGNING_ALLOWED = NO;
+          				INFOPLIST_FILE = Info.plist;
+          				PRODUCT_BUNDLE_IDENTIFIER = com.cfnb.app;
+          				PRODUCT_NAME = CFNB;
+          				SKIP_INSTALL = YES;
+          				SWIFT_EMIT_LOC_STRINGS = YES;
+          				SWIFT_VERSION = 5.0;
           			};
-          			name = Release;
+          			name = Debug;
           		};
           /* End XCBuildConfiguration section */
           
           /* Begin XCConfigurationList section */
           		F1000501 /* Build configuration list for PBXProject "CFNB" */ = {
           			isa = XCConfigurationList;
-          			buildConfigurations = ( F1000902, );
+          			buildConfigurations = ( F1000A01, F1000902 );
           			defaultConfigurationIsVisible = 0;
           		};
           		F1000502 /* Build configuration list for PBXNativeTarget "CFNB" */ = {
           			isa = XCConfigurationList;
-          			buildConfigurations = ( F1000A01, );
+          			buildConfigurations = ( F1000A01, F1000902 );
           			defaultConfigurationIsVisible = 0;
           		};
           /* End XCConfigurationList section */
@@ -362,7 +361,7 @@ jobs:
           }
           EOFPROJ
           
-          # ─── Create XCScheme ───
+          # Create minimal shared scheme directory
           mkdir -p CFNB.xcodeproj/xcshareddata/xcschemes
           cat > CFNB.xcodeproj/xcshareddata/xcschemes/CFNB.xcscheme << 'SCHEME_EOF'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -372,7 +371,7 @@ jobs:
                 <BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">
                   <BuildableReference
                     BuildableIdentifier="primary"
-                    BlueprintPath="CFNB.xcodeproj/project.pbxproj"
+                    BlueprintPath="project.pbxproj"
                     BlueprintIdentifier="F10003T1"
                     BuildableName="CFNB.app"
                     BlueprintName="CFNB"
