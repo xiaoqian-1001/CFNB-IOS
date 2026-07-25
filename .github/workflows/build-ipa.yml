@@ -53,9 +53,29 @@ jobs:
           #import <WebKit/WebKit.h>
           #include "libcfnb.h"
 
+          @interface WebViewController : UIViewController
+          @property (strong, nonatomic) WKWebView *webView;
+          @end
+
+          @implementation WebViewController
+          - (BOOL)prefersStatusBarHidden { return YES; }
+          - (BOOL)prefersHomeIndicatorAutoHidden { return YES; }
+          - (void)viewDidLoad {
+                [super viewDidLoad];
+                self.webView.frame = self.view.bounds;
+                self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+                [self.view addSubview:self.webView];
+          }
+          - (void)viewDidLayoutSubviews {
+                [super viewDidLayoutSubviews];
+                self.webView.frame = self.view.bounds;
+          }
+          @end
+
           @interface AppDelegate : UIResponder <UIApplicationDelegate, WKNavigationDelegate>
           @property (strong, nonatomic) UIWindow *window;
           @property (strong, nonatomic) WKWebView *webView;
+          @property (strong, nonatomic) WebViewController *viewController;
           @property (assign, nonatomic) int retryCount;
           @end
 
@@ -69,16 +89,17 @@ jobs:
                 self.retryCount = 0;
                 WKWebViewConfiguration *c = [[WKWebViewConfiguration alloc] init];
                 self.webView = [[WKWebView alloc] initWithFrame:self.window.bounds configuration:c];
-                self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
                 self.webView.navigationDelegate = self;
                 self.webView.opaque = NO;
                 self.webView.backgroundColor = [UIColor blackColor];
                 self.webView.scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
                 self.webView.scrollView.contentInset = UIEdgeInsetsZero;
                 self.webView.scrollView.scrollIndicatorInsets = UIEdgeInsetsZero;
-                UIViewController *vc = [[UIViewController alloc] init];
-                vc.view = self.webView;
-                self.window.rootViewController = vc;
+                self.webView.scrollView.bounces = NO;
+                self.webView.scrollView.alwaysBounceVertical = NO;
+                self.viewController = [[WebViewController alloc] init];
+                self.viewController.webView = self.webView;
+                self.window.rootViewController = self.viewController;
                 [self.window makeKeyAndVisible];
                 [self showLoading];
 
