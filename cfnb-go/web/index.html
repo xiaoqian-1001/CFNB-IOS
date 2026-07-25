@@ -369,11 +369,15 @@ tr:last-child td { border-bottom: none; }
         <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">过滤国家代码（逗号分隔，如 CN,US,RU）</label>
         <input type="text" id="cfgPreFilterBlockedCountries" value="CN" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;transition:border-color .2s" onchange="saveConfig()">
       </div>
-      <div>
+      <div class="toggle-group" style="margin-bottom:8px">
+        <span>启用 URL 数据源</span>
+        <label class="toggle"><input type="checkbox" id="cfgUseURLSource" checked onchange="toggleDataSource()"><span class="slider"></span></label>
+      </div>
+      <div id="urlSourceRow">
         <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">数据源 URL（每行一个）</label>
         <textarea id="cfgSources" rows="2" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;resize:vertical;font-family:monospace;transition:border-color .2s" onchange="saveConfig()">https://zip.cm.edu.kg/all.txt</textarea>
       </div>
-      <div style="margin-top:8px">
+      <div id="directIPRow" style="margin-top:8px;display:none">
         <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">直接输入 IP（每行一个，支持 IP:port 或 IP:port#国家）</label>
         <textarea id="cfgDirectIPs" rows="2" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;resize:vertical;font-family:monospace;transition:border-color .2s" onchange="saveConfig()" placeholder="1.2.3.4:443&#10;5.6.7.8:2053#US"></textarea>
         <div style="margin-top:6px">
@@ -466,6 +470,7 @@ function saveConfig() {
     testAvailability: document.getElementById('cfgAvailability').checked,
     httpTestEnabled: document.getElementById('cfgHTTPTest').checked,
     sourceURLs: document.getElementById('cfgSources').value.split('\n').map(s => s.trim()).filter(s => s),
+    useURLSource: document.getElementById('cfgUseURLSource').checked,
     directIPs: document.getElementById('cfgDirectIPs').value.split('\n').map(s => s.trim()).filter(s => s),
     preFilterPortEnabled: document.getElementById('cfgPreFilterPort').checked,
     preFilterPorts: document.getElementById('cfgPreFilterPorts').value.split(/[,，\s]+/).map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
@@ -494,6 +499,9 @@ function loadConfig() {
       if (saved.httpTestEnabled !== undefined) document.getElementById('cfgHTTPTest').checked = saved.httpTestEnabled;
       if (saved.sourceURLs && Array.isArray(saved.sourceURLs) && saved.sourceURLs.length > 0) document.getElementById('cfgSources').value = saved.sourceURLs.join('\n');
       if (saved.directIPs && Array.isArray(saved.directIPs) && saved.directIPs.length > 0) document.getElementById('cfgDirectIPs').value = saved.directIPs.join('\n');
+      document.getElementById('cfgUseURLSource').checked = saved.useURLSource !== undefined ? saved.useURLSource : true;
+      document.getElementById('urlSourceRow').style.display = document.getElementById('cfgUseURLSource').checked ? 'block' : 'none';
+      document.getElementById('directIPRow').style.display = document.getElementById('cfgUseURLSource').checked ? 'none' : 'block';
       document.getElementById('cfgPreFilterPort').checked = saved.preFilterPortEnabled !== undefined ? saved.preFilterPortEnabled : true;
       document.getElementById('preFilterPortRow').style.display = document.getElementById('cfgPreFilterPort').checked ? 'block' : 'none';
       if (saved.preFilterPorts && Array.isArray(saved.preFilterPorts) && saved.preFilterPorts.length > 0) {
@@ -508,6 +516,13 @@ function loadConfig() {
   } catch(e) {}
 }
 loadConfig();
+
+function toggleDataSource() {
+  const useURL = document.getElementById('cfgUseURLSource').checked;
+  document.getElementById('urlSourceRow').style.display = useURL ? 'block' : 'none';
+  document.getElementById('directIPRow').style.display = useURL ? 'none' : 'block';
+  saveConfig();
+}
 
 function importFile() {
   const fileInput = document.getElementById('cfgFileInput');
@@ -556,6 +571,7 @@ function startPipeline() {
     testAvailability: document.getElementById('cfgAvailability').checked,
     httpTestEnabled: document.getElementById('cfgHTTPTest').checked,
     sourceURLs: document.getElementById('cfgSources').value.split('\n').map(s => s.trim()).filter(s => s),
+    useURLSource: document.getElementById('cfgUseURLSource').checked,
     directIPs: document.getElementById('cfgDirectIPs').value.split('\n').map(s => s.trim()).filter(s => s),
     preFilterPortEnabled: document.getElementById('cfgPreFilterPort').checked,
     preFilterPorts: document.getElementById('cfgPreFilterPorts').value.split(/[,，\s]+/).map(s => parseInt(s.trim())).filter(n => !isNaN(n)),

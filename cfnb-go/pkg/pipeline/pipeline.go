@@ -234,33 +234,35 @@ func fetchAllSources(cfg *config.Config, log func(string, ...interface{})) []str
 	nodes := make([]string, 0)
 	seen := make(map[string]bool)
 
-	for _, source := range cfg.AdditionalSources {
-		if !source.Enabled || source.URL == "" {
-			continue
-		}
-		sourceNodes, err := parser.FetchSourceWithFallback(source.URL, cfg.FetchMaxRetries, cfg.FetchRetryDelay, cfg.FetchConnectTimeout, cfg.FetchTimeout, cfg.AvailabilityCheckAPI, cfg.AvailabilityConnectTimeout, cfg.AvailabilityTimeout, cfg.FallbackWorkers)
-		if err != nil {
-			log("获取数据源失败: %v", err)
-			continue
-		}
-		for _, n := range sourceNodes {
-			key := strings.SplitN(n, "#", 2)[0]
-			if !seen[key] {
-				seen[key] = true
-				nodes = append(nodes, n)
+	if cfg.UseURLSource {
+		for _, source := range cfg.AdditionalSources {
+			if !source.Enabled || source.URL == "" {
+				continue
+			}
+			sourceNodes, err := parser.FetchSourceWithFallback(source.URL, cfg.FetchMaxRetries, cfg.FetchRetryDelay, cfg.FetchConnectTimeout, cfg.FetchTimeout, cfg.AvailabilityCheckAPI, cfg.AvailabilityConnectTimeout, cfg.AvailabilityTimeout, cfg.FallbackWorkers)
+			if err != nil {
+				log("获取数据源失败: %v", err)
+				continue
+			}
+			for _, n := range sourceNodes {
+				key := strings.SplitN(n, "#", 2)[0]
+				if !seen[key] {
+					seen[key] = true
+					nodes = append(nodes, n)
+				}
 			}
 		}
-	}
-
-	if len(cfg.DirectNodes) > 0 {
-		raw := strings.Join(cfg.DirectNodes, "\n")
-		directNodes := parser.ParseAdaptiveWithFallback(raw, cfg.AvailabilityCheckAPI, cfg.AvailabilityConnectTimeout, cfg.AvailabilityTimeout, cfg.FallbackWorkers)
-		log("直接输入 IP 解析到 %d 个节点", len(directNodes))
-		for _, n := range directNodes {
-			key := strings.SplitN(n, "#", 2)[0]
-			if !seen[key] {
-				seen[key] = true
-				nodes = append(nodes, n)
+	} else {
+		if len(cfg.DirectNodes) > 0 {
+			raw := strings.Join(cfg.DirectNodes, "\n")
+			directNodes := parser.ParseAdaptiveWithFallback(raw, cfg.AvailabilityCheckAPI, cfg.AvailabilityConnectTimeout, cfg.AvailabilityTimeout, cfg.FallbackWorkers)
+			log("直接输入 IP 解析到 %d 个节点", len(directNodes))
+			for _, n := range directNodes {
+				key := strings.SplitN(n, "#", 2)[0]
+				if !seen[key] {
+					seen[key] = true
+					nodes = append(nodes, n)
+				}
 			}
 		}
 	}

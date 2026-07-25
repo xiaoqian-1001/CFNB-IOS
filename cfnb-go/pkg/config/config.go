@@ -44,6 +44,7 @@ type Config struct {
 	CFDNSReadTimeout    float64 `json:"CF_DNS_READ_TIMEOUT"`
 	DNSRecordType       string  `json:"DNS_RECORD_TYPE"`
 	AdditionalSources   []Source `json:"ADDITIONAL_SOURCES"`
+	UseURLSource        bool     `json:"USE_URL_SOURCE"`
 	DirectNodes         []string `json:"DIRECT_NODES"`
 	FetchMaxRetries     int     `json:"FETCH_MAX_RETRIES"`
 	FetchRetryDelay     float64 `json:"FETCH_RETRY_DELAY"`
@@ -150,6 +151,7 @@ func DefaultConfig() *Config {
 		CFDNSReadTimeout:        3,
 		DNSRecordType:           "TXT",
 		AdditionalSources:       []Source{},
+		UseURLSource:            true,
 		FetchMaxRetries:         3,
 		FetchRetryDelay:         3,
 		FetchTimeout:            3,
