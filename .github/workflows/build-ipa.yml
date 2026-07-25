@@ -42,66 +42,86 @@ jobs:
           file cfnb
           file cfnb-server
       
-      - name: Build Swift app binary
+      - name: Build ObjC app binary
         run: |
           cd ${{ github.workspace }}
           
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           
-          cat > main.swift << 'SWIFTEOF'
-          import UIKit
-          import WebKit
-          import Foundation
+          cat > main.m << 'OBJCEOF'
+          #import <UIKit/UIKit.h>
+          #import <WebKit/WebKit.h>
+          #import <dlfcn.h>
           
-          class AppDelegate: UIResponder, UIApplicationDelegate, WKNavigationDelegate {
-            var window: UIWindow?
-            var webView: WKWebView?
+          @interface AppDelegate : UIResponder <UIApplicationDelegate, WKNavigationDelegate>
+          @property (strong, nonatomic) UIWindow *window;
+          @property (strong, nonatomic) WKWebView *webView;
+          @end
           
-            func application(_ application: UIApplication,
-                             didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-              window = UIWindow(frame: UIScreen.main.bounds)
-              let config = WKWebViewConfiguration()
-              webView = WKWebView(frame: UIScreen.main.bounds, configuration: config)
-              webView!.navigationDelegate = self
-              window?.rootViewController = UIViewController()
-              window?.rootViewController?.view = webView
-              window?.makeKeyAndVisible()
+          @implementation AppDelegate
+          
+          - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+              self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
               
-              DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-                guard let wv = self?.webView else { return }
-                wv.load(URLRequest(url: URL(string: "http://127.0.0.1:8080")!))
+              WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
+              self.webView = [[WKWebView alloc] initWithFrame:self.window.bounds configuration:config];
+              self.webView.navigationDelegate = self;
+              
+              UIViewController *vc = [[UIViewController alloc] init];
+              vc.view = self.webView;
+              self.window.rootViewController = vc;
+              [self.window makeKeyAndVisible];
+              
+              NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
+              NSString *serverPath = [bundlePath stringByAppendingPathComponent:@"cfnb-server"];
+              NSString *webDir = [bundlePath stringByAppendingPathComponent:@"web"];
+              
+              pid_t pid = fork();
+              if (pid == 0) {
+                  setenv("PORT", "8080", 1);
+                  setenv("WEB_DIR", [webDir UTF8String], 1);
+                  execl([serverPath UTF8String], "cfnb-server", NULL);
+                  _exit(1);
               }
               
-              let process = Process()
-              process.executableURL = URL(fileURLWithPath: Bundle.main.bundlePath + "/cfnb-server")
-              process.environment = ["PORT": "8080", "WEB_DIR": Bundle.main.bundlePath + "/web"]
-              try? process.run()
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  [self.webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://127.0.0.1:8080"]]];
+              });
               
-              return true
-            }
+              return YES;
           }
           
-          UIApplicationMain(
-            CommandLine.argc,
-            CommandLine.unsafeArgv,
-            nil,
-            NSStringFromClass(AppDelegate.self)
-          )
-          SWIFTEOF
+          - (void)webView:(WKWebView *)webView didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
+              NSLog(@"WebView error: %@", error);
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://127.0.0.1:8080"]]];
+              });
+          }
           
-          swiftc -sdk "$SDK_PATH" -target arm64-apple-ios12.0 \
-            -O \
+          @end
+          
+          int main(int argc, char *argv[]) {
+              @autoreleasepool {
+                  return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
+              }
+          }
+          OBJCEOF
+          
+          echo "=== Compiling Objective-C app binary ==="
+          clang -arch arm64 -isysroot "$SDK_PATH" \
+            -miphoneos-version-min=12.0 \
             -framework UIKit -framework WebKit -framework Foundation \
-            -parse-as-library \
-            main.swift -o CFNB 2>&1
+            -fobjc-arc \
+            -o CFNB main.m
           
           if [ ! -f CFNB ]; then
-            echo "ERROR: Swift compilation failed"
+            echo "ERROR: Objective-C compilation failed!"
             exit 1
           fi
           
           file CFNB
-          echo "Swift app binary compiled successfully"
+          ls -la CFNB
+          echo "ObjC app binary compiled successfully"
           
           file CFNB
           echo "Swift app binary compiled successfully"
