@@ -21,14 +21,26 @@ jobs:
         with:
           go-version: '1.23'
       
-      - name: Build Go binary for iOS/arm64
+      - name: Build Go static library for iOS (c-archive)
         working-directory: ${{ github.workspace }}/cfnb-go
         run: |
+          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          CLANG=$(xcrun --sdk iphoneos --find clang)
+          
           cp -r web cmd/server/web
-          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o cfnb-server ./cmd/server/
-          echo "Go binary built: $(ls -lh cfnb-server)"
+          
+          export CGO_ENABLED=1
+          export GOOS=ios
+          export GOARCH=arm64
+          export CC="$CLANG -arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0"
+          export CGO_CFLAGS="-isysroot $SDK_PATH -arch arm64 -miphoneos-version-min=12.0"
+          
+          go build -buildmode=c-archive -tags ios -o ../libcfnb.a ./cmd/server/
+          
+          echo "libcfnb.a: $(ls -lh ../libcfnb.a)"
+          echo "libcfnb.h: $(ls -lh ../libcfnb.h)"
       
-      - name: Build ObjC app binary
+      - name: Build and link ObjC app with Go library
         run: |
           cd ${{ github.workspace }}
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
@@ -36,17 +48,16 @@ jobs:
           cat > main.m << 'OBJCEOF'
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
-          #import <spawn.h>
-          extern char **environ;
-          
+          #include "libcfnb.h"
+
           @interface AppDelegate : UIResponder <UIApplicationDelegate, WKNavigationDelegate>
           @property (strong, nonatomic) UIWindow *window;
           @property (strong, nonatomic) WKWebView *webView;
           @property (assign, nonatomic) int retryCount;
           @end
-          
+
           @implementation AppDelegate
-          
+
           - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
               self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
               self.retryCount = 0;
@@ -59,22 +70,15 @@ jobs:
               self.window.rootViewController = vc;
               [self.window makeKeyAndVisible];
               [self showLoading];
-              NSString *path = [[[NSBundle mainBundle] bundlePath] stringByAppendingPathComponent:@"cfnb-server"];
-              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                  pid_t p;
-                  const char *argv[] = {[path UTF8String], NULL};
-                  posix_spawn(&p, [path UTF8String], NULL, NULL, (char *const *)argv, environ);
-              });
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  [self tryLoad];
-              });
+              StartServer("8080");
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ [self tryLoad]; });
               return YES;
           }
-          
+
           - (void)showLoading {
               [self.webView loadHTMLString:@"<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><style>body{background:#0d1117;color:#8b949e;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column}@keyframes s{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}d{width:40px;height:40px;border:3px solid #30363d;border-top-color:#58a6ff;border-radius:50%;animation:s 1s infinite;margin-bottom:16px}p{font-size:13px;margin:4px 0}</style></head><body><d></d><p>Starting CFNB Server...</p></body></html>" baseURL:nil];
           }
-          
+
           - (void)tryLoad {
               self.retryCount++;
               NSMutableURLRequest *r = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"http://127.0.0.1:8080"]];
@@ -91,27 +95,27 @@ jobs:
                   });
               }] resume];
           }
-          
+
           @end
-          
+
           int main(int argc, char *argv[]) {
               @autoreleasepool { return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class])); }
           }
           OBJCEOF
-          
+
           clang -arch arm64 -isysroot "$SDK_PATH" -miphoneos-version-min=12.0 \
             -framework UIKit -framework WebKit -framework Foundation \
-            -fobjc-arc -o CFNB main.m
-          cp cfnb-go/cfnb-server .
-          echo "ObjC binary built: $(ls -lh CFNB)"
+            -fobjc-arc -I. -o CFNB main.m libcfnb.a \
+            -lresolv
+
+          echo "App binary: $(ls -lh CFNB)"
       
       - name: Create app bundle and IPA
         run: |
           cd ${{ github.workspace }}
           mkdir -p Payload/CFNB.app
           cp CFNB Payload/CFNB.app/CFNB
-          cp cfnb-server Payload/CFNB.app/cfnb-server
-          chmod +x Payload/CFNB.app/CFNB Payload/CFNB.app/cfnb-server
+          chmod +x Payload/CFNB.app/CFNB
           cp -r cfnb-go/web Payload/CFNB.app/web
           
           cat > Payload/CFNB.app/Info.plist << 'EOF'

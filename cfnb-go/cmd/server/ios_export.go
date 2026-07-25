@@ -1,4 +1,4 @@
-//go:build cfios
+//go:build ios
 
 package main
 
