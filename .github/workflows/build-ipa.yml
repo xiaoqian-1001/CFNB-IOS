@@ -61,26 +61,32 @@ jobs:
 
           @implementation AppDelegate
 
-          - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-               self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-               if (@available(iOS 13.0, *)) {
-                   self.window.windowScene = (UIWindowScene *)application.connectedScenes.anyObject;
-               }
-               self.retryCount = 0;
-               WKWebViewConfiguration *c = [[WKWebViewConfiguration alloc] init];
-               self.webView = [[WKWebView alloc] initWithFrame:self.window.bounds configuration:c];
-               self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-               self.webView.navigationDelegate = self;
-               self.webView.opaque = NO;
-               self.webView.backgroundColor = [UIColor blackColor];
-               self.webView.scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
-               UIViewController *vc = [[UIViewController alloc] init];
-               vc.view = self.webView;
-               self.window.rootViewController = vc;
-               [self.window makeKeyAndVisible];
-               [self showLoading];
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+                self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+                self.retryCount = 0;
+                WKWebViewConfiguration *c = [[WKWebViewConfiguration alloc] init];
+                self.webView = [[WKWebView alloc] initWithFrame:self.window.bounds configuration:c];
+                self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+                self.webView.navigationDelegate = self;
+                self.webView.opaque = NO;
+                self.webView.backgroundColor = [UIColor blackColor];
+                self.webView.scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
+                UIViewController *vc = [[UIViewController alloc] init];
+                vc.view = self.webView;
+                self.window.rootViewController = vc;
+                [self.window makeKeyAndVisible];
+                [self showLoading];
 
-               // Switch to writable Documents directory for iOS sandbox
+                // On iOS 13+, assign windowScene after the scene is available
+                if (@available(iOS 13.0, *)) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        self.window.windowScene = (UIWindowScene *)application.connectedScenes.anyObject;
+                        self.window.frame = [UIScreen mainScreen].bounds;
+                        self.webView.frame = self.window.bounds;
+                    });
+                }
+
+                // Switch to writable Documents directory for iOS sandbox
                NSString *docs = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
                chdir([docs UTF8String]);
                // Copy config.json from bundle to Documents
@@ -93,9 +99,9 @@ jobs:
                return YES;
            }
 
-          - (void)showLoading {
-              [self.webView loadHTMLString:@"<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><style>body{background:#0d1117;color:#8b949e;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column}@keyframes s{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}d{width:40px;height:40px;border:3px solid #30363d;border-top-color:#58a6ff;border-radius:50%;animation:s 1s infinite;margin-bottom:16px}p{font-size:13px;margin:4px 0}</style></head><body><d></d><p>Starting CFNB Server...</p></body></html>" baseURL:nil];
-          }
+- (void)showLoading {
+               [self.webView loadHTMLString:@"<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'><style>body{background:#0d1117;color:#8b949e;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;height:100dvh;margin:0;flex-direction:column}@keyframes s{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}d{width:40px;height:40px;border:3px solid #30363d;border-top-color:#58a6ff;border-radius:50%;animation:s 1s infinite;margin-bottom:16px}p{font-size:13px;margin:4px 0}</style></head><body><d></d><p>Starting CFNB Server...</p></body></html>" baseURL:nil];
+           }
 
           - (void)tryLoad {
               self.retryCount++;
@@ -108,7 +114,7 @@ jobs:
                       } else if (self.retryCount < 20) {
                           dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ [self tryLoad]; });
                       } else {
-                          [self.webView loadHTMLString:@"<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><style>body{background:#0d1117;color:#f85149;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-size:13px}</style></head><body>Server failed.<br/>iOS may block subprocess.</body></html>" baseURL:nil];
+                          [self.webView loadHTMLString:@"<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'><style>body{background:#0d1117;color:#f85149;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;height:100dvh;margin:0;font-size:13px}</style></head><body>Server failed.<br/>iOS may block subprocess.</body></html>" baseURL:nil];
                       }
                   });
               }] resume];
