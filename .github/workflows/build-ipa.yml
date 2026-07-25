@@ -63,6 +63,9 @@ jobs:
 
           - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
                 self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+                if (@available(iOS 13.0, *)) {
+                    self.window.windowScene = (UIWindowScene *)application.connectedScenes.anyObject;
+                }
                 self.retryCount = 0;
                 WKWebViewConfiguration *c = [[WKWebViewConfiguration alloc] init];
                 self.webView = [[WKWebView alloc] initWithFrame:self.window.bounds configuration:c];
@@ -71,20 +74,13 @@ jobs:
                 self.webView.opaque = NO;
                 self.webView.backgroundColor = [UIColor blackColor];
                 self.webView.scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
+                self.webView.scrollView.contentInset = UIEdgeInsetsZero;
+                self.webView.scrollView.scrollIndicatorInsets = UIEdgeInsetsZero;
                 UIViewController *vc = [[UIViewController alloc] init];
                 vc.view = self.webView;
                 self.window.rootViewController = vc;
                 [self.window makeKeyAndVisible];
                 [self showLoading];
-
-                // On iOS 13+, assign windowScene after the scene is available
-                if (@available(iOS 13.0, *)) {
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        self.window.windowScene = (UIWindowScene *)application.connectedScenes.anyObject;
-                        self.window.frame = [UIScreen mainScreen].bounds;
-                        self.webView.frame = self.window.bounds;
-                    });
-                }
 
                 // Switch to writable Documents directory for iOS sandbox
                 NSString *docs = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
