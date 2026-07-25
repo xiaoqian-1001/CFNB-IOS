@@ -392,9 +392,13 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 	scannerDone := make(chan struct{}, 1)
 
 	go func() {
-		scanner := bufio.NewScanner(pr)
-		for scanner.Scan() {
-			line := scanner.Text()
+		reader := bufio.NewReaderSize(pr, 256)
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				break
+			}
+			line = strings.TrimRight(line, "\n\r")
 			if line != "" {
 				addLog(line)
 				updateProgressFromLog(line)
