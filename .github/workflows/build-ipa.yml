@@ -124,10 +124,9 @@ jobs:
                   process = Process()
                   let exePath = Bundle.main.bundlePath as NSString
                   
-                  // Find cfnb-server binary
+                  // iOS app bundles are flat: /var/.../CFNB.app/cfnb-server
                   let candidates = [
                       exePath.appendingPathComponent("cfnb-server"),
-                      exePath.appending("/CFNB.app/cfnb-server"),
                       exePath.deletingLastPathComponent().appendingPathComponent("cfnb-server")
                   ]
                   
@@ -139,9 +138,10 @@ jobs:
                       }
                   }
                   
-                  // Also check "web" directory relative to bundle
+                  // Check "web" directory relative to bundle
                   let webCandidates = [
                       exePath.appendingPathComponent("CFNB.app.web"),
+                      exePath.deletingLastPathComponent().appendingPathComponent("CFNB.app.web"),
                       exePath.appendingPathComponent("web"),
                       exePath.deletingLastPathComponent().appendingPathComponent("web")
                   ]
@@ -157,7 +157,6 @@ jobs:
                   guard let exe = executablePath else {
                       logger.error("cfnb-server binary not found in bundle")
                       logger.error("Bundle path: \(exePath)")
-                      logger.error("Files: \(FileManager.default.enumerator(at: URL(fileURLWithPath: exePath as String), includingPropertiesForKeys: nil, options: .skipsSubdirectoryDescendants))?.allObjects ?? []")
                       return
                   }
                   
@@ -192,7 +191,7 @@ jobs:
           echo "---"
           ls -la CFNB.app.web/ 2>/dev/null || echo "No web dir yet"
       
-      - name: Generate project.pbxproj
+      - name: Generate project.pbxproj and Scheme
         run: |
           cd ${{ github.workspace }}
           
@@ -206,8 +205,6 @@ jobs:
           
           /* Begin PBXBuildFile section */
           		F1000001 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000101; };
-          		F1000002 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = F1000102; };
-          		F1000003 /* CFNB.app.web in Resources */ = {isa = PBXBuildFile; fileRef = F1000104; };
           /* End PBXBuildFile section */
           
           /* Begin PBXFileReference section */
@@ -278,7 +275,7 @@ jobs:
           		F10004R1 /* Resources */ = {
           			isa = PBXResourcesBuildPhase;
           			buildActionMask = 2147483647;
-          			files = ( F1000002, F1000003, );
+          			files = ( );
           			runOnlyForDeploymentPostprocessing = 0;
           		};
           /* End PBXResourcesBuildPhase section */
@@ -305,14 +302,18 @@ jobs:
           		F1000A01 /* Release */ = {
           			isa = XCBuildConfiguration;
           			buildSettings = {
+          				CODE_SIGN_IDENTITY = "";
           				CODE_SIGN_STYLE = Manual;
           				CURRENT_PROJECT_VERSION = 1;
           				DEVELOPMENT_TEAM = "";
           				GENERATE_INFOPLIST_FILE = NO;
           				INFOPLIST_FILE = Info.plist;
+          				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+          				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
           				LINKER_DISPLAYS_MANGLED_NAMES = NO;
           				PRODUCT_BUNDLE_IDENTIFIER = com.cfnb.app;
-          				PRODUCT_NAME = "$(TARGET_NAME)";
+          				PRODUCT_NAME = CFNB;
+          				SKIP_INSTALL = YES;
           				SWIFT_EMIT_LOC_STRINGS = YES;
           				SWIFT_VERSION = 5.0;
           				TARGETED_DEVICE_FAMILY = "1,2";
@@ -355,57 +356,40 @@ jobs:
           			defaultConfigurationIsVisible = 0;
           		};
           /* End XCConfigurationList section */
-          
+          		
           	};
           	rootObject = F1000901;
           }
           EOFPROJ
           
-          echo "PBXProj generated successfully"
-          wc -l CFNB.xcodeproj/project.pbxproj
+          # ─── Create XCScheme ───
+          mkdir -p CFNB.xcodeproj/xcshareddata/xcschemes
+          cat > CFNB.xcodeproj/xcshareddata/xcschemes/CFNB.xcscheme << 'SCHEME_EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <Scheme Version="1.7">
+            <BuildAction parallelizeBuildables="YES" buildImplicitTargets="YES">
+              <BuildActionEntries>
+                <BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">
+                  <BuildableReference
+                    BuildableIdentifier="primary"
+                    BlueprintPath="CFNB.xcodeproj/project.pbxproj"
+                    BlueprintIdentifier="F10003T1"
+                    BuildableName="CFNB.app"
+                    BlueprintName="CFNB"
+                    ReferencedContainer="container:CFNB.xcodeproj">
+                  </BuildableReference>
+                </BuildActionEntry>
+              </BuildActionEntries>
+            </BuildAction>
+          </Scheme>
+          SCHEME_EOF
+          
+          echo "PBXProj and Scheme generated successfully"
+          ls -la CFNB.xcodeproj/xcshareddata/xcschemes/
       
       - name: Archive
         run: |
           cd ${{ github.workspace }}
-          
-          # Copy Go binaries to the right place for Xcode bundling
-          mkdir -p CFNB.app
-          cp cfnb-go/cfnb CFNB.app/cfnb
-          cp cfnb-go/cfnb-server CFNB.app/cfnb-server
-          chmod +x CFNB.app/cfnb CFNB.app/cfnb-server
-          
-          # Also make web dir accessible
-          if [ ! -d "CFNB.app.web" ]; then
-            echo "ERROR: CFNB.app.web not created by previous step!"
-            exit 1
-          fi
-          
-          # Verify pbxproj exists
-          if [ ! -f "CFNB.xcodeproj/project.pbxproj" ]; then
-            echo "ERROR: project.pbxproj not found!"
-            ls -la CFNB.xcodeproj/
-            exit 1
-          fi
-          
-          # List all files in the workspace to debug
-          echo "=== Workspace files ==="
-          find . -maxdepth 3 -not -path './.git/*' -not -path './.github/*' | sort
-          
-          # Try building first to verify the project is valid
-          xcodebuild build \
-            -scheme CFNB \
-            -configuration Release \
-            -destination generic/platform=iOS \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            SYMROOT=$GITHUB_WORKSPACE/build/SYM \
-            OBJROOT=$GITHUB_WORKSPACE/build/OBJ \
-            BUILD_DIR=$GITHUB_WORKSPACE/build \
-            ONLY_ACTIVE_ARCH=NO \
-            2>&1 | tail -30
-          
-          echo "=== Build succeeded, now archiving ==="
           
           xcodebuild archive \
             -scheme CFNB \
@@ -430,17 +414,23 @@ jobs:
             exit 1
           fi
           
-          # Find the CFNB.app inside the xcarchive
-          APP_PATH="build/CFNB.xcarchive/Products/Applications/CFNB.app"
-          if [ ! -d "$APP_PATH" ]; then
-            echo "Contents of xcarchive:"
-            find build/CFNB.xcarchive -type f 2>/dev/null | head -30
-            echo "ERROR: CFNB.app not found in xcarchive!"
-            exit 1
+          # Copy Go binaries into the xcarchive's Products/Applications
+          APP_IN_XCA="build/CFNB.xcarchive/Products/Applications/CFNB.app"
+          mkdir -p "$APP_IN_XCA"
+          cp cfnb-go/cfnb-server "$APP_IN_XCA/cfnb-server"
+          cp cfnb-go/cfnb "$APP_IN_XCA/cfnb"
+          chmod +x "$APP_IN_XCA/cfnb-server" "$APP_IN_XCA/cfnb"
+          
+          # Copy web assets
+          if [ -d "CFNB.app.web" ]; then
+            cp -r CFNB.app.web "$APP_IN_XCA/CFNB.app.web"
+          else
+            # Try alternative location
+            cp -r cfnb-go/web "$APP_IN_XCA/web" 2>/dev/null || true
           fi
           
           mkdir -p build/Payload
-          cp -r "$APP_PATH" build/Payload/
+          cp -r "$APP_IN_XCA" build/Payload/
           
           echo "Creating IPA via zip..."
           cd build
