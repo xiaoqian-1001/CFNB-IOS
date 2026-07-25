@@ -376,6 +376,9 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 	outBuf := &bytes.Buffer{}
 	done := make(chan error, 1)
 
+	// Use io.Pipe for the scanner to avoid OS pipe buffering
+	ioR, ioW := io.Pipe()
+
 	var result *pipeline.Result
 	go func() {
 		defer restoreStdout()
@@ -385,6 +388,16 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 		done <- err
 	}()
 
+	// Bridge os.Pipe -> io.Pipe for real-time line reading
+	go func() {
+		_, err := io.Copy(ioW, pr)
+		if err != nil {
+			ioW.CloseWithError(err)
+		} else {
+			ioW.Close()
+		}
+	}()
+
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -392,7 +405,7 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 	scannerDone := make(chan struct{}, 1)
 
 	go func() {
-		reader := bufio.NewReaderSize(pr, 256)
+		reader := bufio.NewReaderSize(ioR, 256)
 		for {
 			line, err := reader.ReadString('\n')
 			if err != nil {
