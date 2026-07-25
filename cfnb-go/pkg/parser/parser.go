@@ -369,7 +369,7 @@ func ResolveCountriesBatch(ipports []string, apiURL string, connectTimeout, read
 
 		now := time.Now()
 		if now.Sub(lastPrint) >= time.Duration(progressInterval)*time.Second || completed == total {
-			fmt.Printf("\n[备用API查询] 进度：%d/%d (%.1f%%)", completed, total, float64(completed)/float64(total)*100)
+			fmt.Printf("\n[备用API查询] 进度：%d/%d (%.1f%%)\n", completed, total, float64(completed)/float64(total)*100)
 			lastPrint = now
 		}
 	}
