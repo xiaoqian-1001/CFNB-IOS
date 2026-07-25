@@ -29,21 +29,24 @@ jobs:
           
           cp -r web cmd/server/web
           
-          export CGO_ENABLED=1
-          export GOOS=ios
-          export GOARCH=arm64
-          export CC="$CLANG -arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0"
-          export CGO_CFLAGS="-isysroot $SDK_PATH -arch arm64 -miphoneos-version-min=12.0"
+          echo "=== Building libcfnb.a (c-archive) ==="
+          CGO_ENABLED=1 GOOS=ios GOARCH=arm64 \
+            CC="$CLANG -arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
+            CGO_CFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
+            go build -buildmode=c-archive -tags ios -o "${{ github.workspace }}/libcfnb.a" ./cmd/server/ 2>&1 || echo "WARNING: c-archive build failed"
           
-          go build -buildmode=c-archive -tags ios -o ../libcfnb.a ./cmd/server/
-          
-          echo "libcfnb.a: $(ls -lh ../libcfnb.a)"
-          echo "libcfnb.h: $(ls -lh ../libcfnb.h)"
+          ls -lh "${{ github.workspace }}/libcfnb.a" 2>/dev/null || echo "libcfnb.a not generated"
+          ls -lh "${{ github.workspace }}/libcfnb.h" 2>/dev/null || echo "libcfnb.h not generated"
       
       - name: Build and link ObjC app with Go library
         run: |
           cd ${{ github.workspace }}
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          
+          if [ ! -f libcfnb.a ] || [ ! -f libcfnb.h ]; then
+            echo "ERROR: libcfnb.a or libcfnb.h not found. c-archive build failed."
+            exit 1
+          fi
           
           cat > main.m << 'OBJCEOF'
           #import <UIKit/UIKit.h>
