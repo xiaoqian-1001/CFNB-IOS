@@ -100,8 +100,11 @@ func init() {
 
 func serveIndex(w http.ResponseWriter, r *http.Request) {
 	if webFS != nil {
-		// Try serving from embedded filesystem first
-		f, err := webFS.Open(r.URL.Path)
+		path := r.URL.Path
+		if path == "/" {
+			path = "index.html"
+		}
+		f, err := webFS.Open(path)
 		if err == nil {
 			defer f.Close()
 			stat, _ := f.Stat()
@@ -109,11 +112,11 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 				data, _ := io.ReadAll(f)
 				ct := "text/plain"
 				switch {
-				case strings.HasSuffix(r.URL.Path, ".html"):
+				case strings.HasSuffix(path, ".html"):
 					ct = "text/html; charset=utf-8"
-				case strings.HasSuffix(r.URL.Path, ".css"):
+				case strings.HasSuffix(path, ".css"):
 					ct = "text/css; charset=utf-8"
-				case strings.HasSuffix(r.URL.Path, ".js"):
+				case strings.HasSuffix(path, ".js"):
 					ct = "application/javascript; charset=utf-8"
 				}
 				w.Header().Set("Content-Type", ct)
@@ -468,23 +471,23 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 func updateProgressFromLog(line string) {
 	switch {
 	case strings.Contains(line, "备用API查询"):
-		updateProgress("Phase 2/6: Querying backup API...")
+		updateProgress("Phase 2/6: 获取数据源")
 	case strings.Contains(line, "正在请求数据源"):
-		updateProgress("Phase 2/6: Fetching data sources...")
+		updateProgress("Phase 2/6: 获取数据源")
 	case strings.Contains(line, "合并后总计"):
-		updateProgress("Phase 3/6: TCP latency testing...")
+		updateProgress("Phase 3/6: TCP 测试")
 	case strings.Contains(line, "开始 TCP"):
-		updateProgress("Phase 3/6: TCP latency testing...")
+		updateProgress("Phase 3/6: TCP 测试")
 	case strings.Contains(line, "TCP 测试完成"):
-		updateProgress("Phase 4/6: Availability & HTTP testing...")
+		updateProgress("Phase 4/6: 可用性筛选")
 	case strings.Contains(line, "可用性"):
-		updateProgress("Phase 4/6: Availability testing...")
+		updateProgress("Phase 4/6: 可用性筛选")
 	case strings.Contains(line, "HTTP检测"):
-		updateProgress("Phase 4/6: HTTP testing...")
+		updateProgress("Phase 4/6: HTTP 检测")
 	case strings.Contains(line, "带宽测速"):
-		updateProgress("Phase 5/6: Bandwidth testing...")
+		updateProgress("Phase 5/6: 带宽测速")
 	case strings.Contains(line, "结果已保存"):
-		updateProgress("Phase 6/6: Finalizing results...")
+		updateProgress("Phase 6/6: 完成")
 	case strings.Contains(line, "已自动推送"):
 		updateProgress("Completed!")
 	}

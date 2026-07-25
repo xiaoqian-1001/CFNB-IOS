@@ -30,25 +30,46 @@
   --shadow-lg: 0 4px 12px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+.light-theme {
+  --bg-primary: #f0f4f8;
+  --bg-card: #ffffff;
+  --bg-elevated: #e8edf4;
+  --border: #d0dbe8;
+  --border-focus: #3b82f6;
+  --text-primary: #1a2332;
+  --text-secondary: #4a5a6a;
+  --text-muted: #8899aa;
+  --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,.1), 0 2px 4px rgba(0,0,0,.08);
+}
 
-html { height: 100%; }
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', 'Helvetica Neue', sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
-  min-height: 100%; min-height: 100vh; min-height: 100dvh;
+  min-height: 100vh; min-height: 100dvh;
   background-image: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(59,130,246,.08), transparent),
                     radial-gradient(ellipse 60% 50% at 80% 80%, rgba(6,182,212,.05), transparent);
 }
 
-.container { max-width: 1100px; margin: 0 auto; padding: 20px 20px 40px; padding: calc(env(safe-area-inset-top) + 20px) 20px calc(env(safe-area-inset-bottom) + 40px); }
+.container { max-width: 1100px; margin: 0 auto; padding: 20px 20px 40px; }
 
 .header {
   text-align: center; padding: 32px 0 20px;
   position: relative;
 }
+.header-top {
+  display: flex; align-items: center; justify-content: space-between;
+  position: absolute; top: 0; right: 0; left: 0;
+}
+.theme-btn {
+  background: none; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--text-secondary); cursor: pointer; font-size: 16px; padding: 5px 9px;
+  line-height: 1; transition: all .2s;
+}
+.theme-btn:hover { background: var(--bg-elevated); color: var(--text-primary); }
 .header::after {
   content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 60px; height: 2px; background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
@@ -264,7 +285,7 @@ tr:last-child td { border-bottom: none; }
 .fade-in { animation: fadeIn .35s ease both; }
 
 @media (max-width: 768px) {
-  .container { padding: 12px; padding: calc(env(safe-area-inset-top) + 12px) 12px calc(env(safe-area-inset-bottom) + 12px); }
+  .container { padding: 12px; }
   .header { padding: 20px 0 16px; }
   .header h1 { font-size: 22px; }
   .config-grid { grid-template-columns: 1fr; gap: 8px; }
@@ -281,6 +302,10 @@ tr:last-child td { border-bottom: none; }
 <body>
 <div class="container">
   <div class="header">
+    <div class="header-top">
+      <span></span>
+      <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="切换明暗主题">&#9681;</button>
+    </div>
     <h1>CFNB <span class="badge">v2.0 Go</span></h1>
     <p class="subtitle">Cloudflare CDN IP 优选工具 — 自动节点筛选与测速</p>
   </div>
@@ -302,11 +327,8 @@ tr:last-child td { border-bottom: none; }
     </div>
   </div>
 
-  <div class="config-section">
-    <div class="config-title" style="display:flex;justify-content:space-between;align-items:center">
-      <span>参数配置</span>
-      <button onclick="resetConfig()" style="padding:3px 10px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);font-size:11px;cursor:pointer">重置</button>
-    </div>
+  <div class="config-section" style="position:relative">
+    <div class="config-title">参数配置 <button onclick="resetConfig()" style="position:absolute;right:20px;top:16px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-secondary);cursor:pointer;font-size:11px;padding:3px 8px">重置</button></div>
     <div class="config-grid">
       <div class="config-item">
         <label>测速文件</label>
@@ -335,18 +357,18 @@ tr:last-child td { border-bottom: none; }
         <input type="number" id="cfgTCPProbes" value="1" min="1" max="10" onchange="saveConfig()">
         <label>TCP并发</label>
         <input type="number" id="cfgTCPWorkers" value="300" min="10" max="1000" onchange="saveConfig()">
+        <label>TCP超时(s)</label>
+        <input type="number" id="cfgTCPTimeout" value="3" min="1" max="30" step="0.5" onchange="saveConfig()">
         <label>测速并发</label>
         <input type="number" id="cfgBWWorkers" value="3" min="1" max="50" onchange="saveConfig()">
-        <label>带宽超时 (s)</label>
-        <input type="number" id="cfgBandwidthTimeout" value="3" min="1" max="30" step="0.5" onchange="saveConfig()">
-        <label>TCP超时 (s)</label>
-        <input type="number" id="cfgTCPTimeout" value="2" min="1" max="30" step="0.5" onchange="saveConfig()">
+        <label>测速超时(s)</label>
+        <input type="number" id="cfgBWTimeout" value="3" min="1" max="30" step="0.5" onchange="saveConfig()">
         <label>最低成功率</label>
-        <input type="number" id="cfgMinSuccessRate" value="1.0" min="0.1" max="1.0" step="0.1" onchange="saveConfig()">
-      </div>
+        <input type="number" id="cfgMinSuccessRate" value="100" min="1" max="100" onchange="saveConfig()" style="width:100%">
+        <span style="font-size:10px;color:var(--text-muted);grid-column:2">% (0-100)</span>
     </div>
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-      <div class="toggle-row" style="margin-bottom:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="toggle-row" style="margin-bottom:10px">
         <div class="toggle-group">
           <span>IP 可用性筛选</span>
           <label class="toggle"><input type="checkbox" id="cfgAvailability" checked onchange="saveConfig()"><span class="slider"></span></label>
@@ -356,38 +378,42 @@ tr:last-child td { border-bottom: none; }
           <label class="toggle"><input type="checkbox" id="cfgHTTPTest" checked onchange="saveConfig()"><span class="slider"></span></label>
         </div>
         <div class="toggle-group">
-          <span>前置端口过滤</span>
-          <label class="toggle"><input type="checkbox" id="cfgPreFilterPort" checked onchange="togglePreFilterPort()"><span class="slider"></span></label>
+          <span>端口过滤</span>
+          <label class="toggle"><input type="checkbox" id="cfgPortFilter" onchange="togglePortFilter()"><span class="slider"></span></label>
         </div>
         <div class="toggle-group">
-          <span>前置黑名单过滤</span>
-          <label class="toggle"><input type="checkbox" id="cfgPreFilterBlocked" checked onchange="togglePreFilterBlocked()"><span class="slider"></span></label>
+          <span>屏蔽国家</span>
+          <label class="toggle"><input type="checkbox" id="cfgBlockCountry" onchange="toggleBlockCountry()"><span class="slider"></span></label>
         </div>
       </div>
-      <div id="preFilterPortRow" style="margin-bottom:8px">
-        <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">过滤端口（逗号分隔，如 443,80,2053）</label>
-        <input type="text" id="cfgPreFilterPorts" value="443" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;transition:border-color .2s" onchange="saveConfig()">
+      <div id="portFilterRow" style="display:none;margin-bottom:8px">
+        <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">过滤端口（逗号分隔）</label>
+        <input type="text" id="cfgPorts" value="443,8443,2053,2096,2087,2083" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;transition:border-color .2s" onchange="saveConfig()">
       </div>
-      <div id="preFilterBlockedRow" style="margin-bottom:8px">
-        <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">过滤国家代码（逗号分隔，如 CN,US,RU）</label>
-        <input type="text" id="cfgPreFilterBlockedCountries" value="CN" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;transition:border-color .2s" onchange="saveConfig()">
+      <div id="blockCountryRow" style="display:none;margin-bottom:8px">
+        <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">屏蔽国家代码（逗号分隔，如 CN,US,KR）</label>
+        <input type="text" id="cfgBlockedCountries" value="KR" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;transition:border-color .2s" onchange="saveConfig()">
       </div>
-      <div class="toggle-group" style="margin-bottom:8px">
-        <span>启用 URL 数据源</span>
-        <label class="toggle"><input type="checkbox" id="cfgUseURLSource" checked onchange="toggleDataSource()"><span class="slider"></span></label>
-      </div>
-      <div id="urlSourceRow">
-        <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">数据源 URL（每行一个）</label>
-        <textarea id="cfgSources" rows="2" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;resize:vertical;font-family:monospace;transition:border-color .2s" onchange="saveConfig()">https://zip.cm.edu.kg/all.txt</textarea>
-      </div>
-      <div id="directIPRow" style="margin-top:8px;display:none">
-        <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">直接输入 IP（每行一个，支持 IP:port 或 IP:port#国家）</label>
-        <textarea id="cfgDirectIPs" rows="2" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;resize:vertical;font-family:monospace;transition:border-color .2s" onchange="saveConfig()" placeholder="1.2.3.4:443&#10;5.6.7.8:2053#US"></textarea>
-        <div style="margin-top:6px">
-          <input type="file" id="cfgFileInput" accept=".txt,.csv" style="display:none" onchange="importFile()">
-          <button onclick="document.getElementById('cfgFileInput').click()" style="padding:4px 12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;cursor:pointer">导入文件</button>
-          <button onclick="clearDirectIPs()" style="padding:4px 12px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);border-radius:var(--radius-sm);color:var(--accent-red);font-size:12px;cursor:pointer;margin-left:6px">清空</button>
-          <span style="font-size:11px;color:var(--text-muted);margin-left:8px">支持 .txt / .csv 文件</span>
+      <div style="margin-bottom:8px">
+        <div class="toggle-row" style="margin-bottom:6px">
+          <span style="font-size:12px;color:var(--text-secondary)">数据源模式</span>
+          <div class="toggle-group">
+            <span>URL</span>
+            <label class="toggle"><input type="checkbox" id="cfgUseDirectIP" onchange="toggleDataSource()"><span class="slider"></span></label>
+            <span>直接输入 IP</span>
+          </div>
+        </div>
+        <div id="urlSourceSection">
+          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">数据源 URL（每行一个）</label>
+          <textarea id="cfgSources" rows="2" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;resize:vertical;font-family:monospace;transition:border-color .2s" onchange="saveConfig()">https://zip.cm.edu.kg/all.txt</textarea>
+        </div>
+        <div id="directIPSection" style="display:none">
+          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">直接输入 IP（每行一个 IP:端口）</label>
+          <div style="display:flex;gap:6px;margin-bottom:4px">
+            <button onclick="importIPFile()" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-secondary);cursor:pointer;font-size:11px;padding:4px 10px">导入文件</button>
+            <button onclick="clearDirectIPs()" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-secondary);cursor:pointer;font-size:11px;padding:4px 10px">清空</button>
+          </div>
+          <textarea id="cfgDirectIPs" rows="4" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;resize:vertical;font-family:monospace;transition:border-color .2s" onchange="saveConfig()" placeholder="例如：&#10;1.1.1.1:443&#10;1.0.0.1:443"></textarea>
         </div>
       </div>
     </div>
@@ -467,19 +493,19 @@ function saveConfig() {
     perCountryTopN: parseInt(document.getElementById('cfgPerCountryTopN').value) || 1,
     tcpProbes: parseInt(document.getElementById('cfgTCPProbes').value) || 1,
     tcpWorkers: parseInt(document.getElementById('cfgTCPWorkers').value) || 300,
-    tcpTimeout: parseFloat(document.getElementById('cfgTCPTimeout').value) || 2,
-    minSuccessRate: parseFloat(document.getElementById('cfgMinSuccessRate').value) || 1.0,
+    tcpTimeout: parseFloat(document.getElementById('cfgTCPTimeout').value) || 3,
     bandwidthWorkers: parseInt(document.getElementById('cfgBWWorkers').value) || 3,
-    bandwidthTimeout: parseFloat(document.getElementById('cfgBandwidthTimeout').value) || 3,
+    bandwidthTimeout: parseFloat(document.getElementById('cfgBWTimeout').value) || 3,
+    minSuccessRate: parseInt(document.getElementById('cfgMinSuccessRate').value) || 100,
     testAvailability: document.getElementById('cfgAvailability').checked,
     httpTestEnabled: document.getElementById('cfgHTTPTest').checked,
+    portFilterEnabled: document.getElementById('cfgPortFilter').checked,
+    filterPorts: document.getElementById('cfgPorts').value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
+    blockCountryEnabled: document.getElementById('cfgBlockCountry').checked,
+    blockedCountries: document.getElementById('cfgBlockedCountries').value.split(',').map(s => s.trim().toUpperCase()).filter(s => s),
+    useDirectIP: document.getElementById('cfgUseDirectIP').checked,
     sourceURLs: document.getElementById('cfgSources').value.split('\n').map(s => s.trim()).filter(s => s),
-    useURLSource: document.getElementById('cfgUseURLSource').checked,
-    directIPs: document.getElementById('cfgDirectIPs').value.split('\n').map(s => s.trim()).filter(s => s),
-    preFilterPortEnabled: document.getElementById('cfgPreFilterPort').checked,
-    preFilterPorts: document.getElementById('cfgPreFilterPorts').value.split(/[,，\s]+/).map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
-    preFilterBlockedEnabled: document.getElementById('cfgPreFilterBlocked').checked,
-    preFilterBlockedCountries: document.getElementById('cfgPreFilterBlockedCountries').value.split(/[,，\s]+/).map(s => s.trim().toUpperCase()).filter(s => s)
+    directIPs: document.getElementById('cfgDirectIPs').value.split('\n').map(s => s.trim()).filter(s => s)
   };
   localStorage.setItem('cfnbConfig', JSON.stringify(cfg));
 }
@@ -495,78 +521,79 @@ function loadConfig() {
       document.getElementById('cfgPerCountryTopN').value = saved.perCountryTopN || 1;
       document.getElementById('cfgTCPProbes').value = saved.tcpProbes || 1;
       document.getElementById('cfgTCPWorkers').value = saved.tcpWorkers || 300;
-      document.getElementById('cfgTCPTimeout').value = saved.tcpTimeout || 2;
-      document.getElementById('cfgMinSuccessRate').value = saved.minSuccessRate || 1.0;
+      document.getElementById('cfgTCPTimeout').value = saved.tcpTimeout || 3;
       document.getElementById('cfgBWWorkers').value = saved.bandwidthWorkers || 3;
-      document.getElementById('cfgBandwidthTimeout').value = saved.bandwidthTimeout || 3;
+      document.getElementById('cfgBWTimeout').value = saved.bandwidthTimeout || 3;
+      document.getElementById('cfgMinSuccessRate').value = saved.minSuccessRate || 100;
       if (saved.testAvailability !== undefined) document.getElementById('cfgAvailability').checked = saved.testAvailability;
       if (saved.httpTestEnabled !== undefined) document.getElementById('cfgHTTPTest').checked = saved.httpTestEnabled;
-      if (saved.sourceURLs && Array.isArray(saved.sourceURLs) && saved.sourceURLs.length > 0) document.getElementById('cfgSources').value = saved.sourceURLs.join('\n');
-      if (saved.directIPs && Array.isArray(saved.directIPs) && saved.directIPs.length > 0) document.getElementById('cfgDirectIPs').value = saved.directIPs.join('\n');
-      document.getElementById('cfgUseURLSource').checked = saved.useURLSource !== undefined ? saved.useURLSource : true;
-      document.getElementById('urlSourceRow').style.display = document.getElementById('cfgUseURLSource').checked ? 'block' : 'none';
-      document.getElementById('directIPRow').style.display = document.getElementById('cfgUseURLSource').checked ? 'none' : 'block';
-      document.getElementById('cfgPreFilterPort').checked = saved.preFilterPortEnabled !== undefined ? saved.preFilterPortEnabled : true;
-      document.getElementById('preFilterPortRow').style.display = document.getElementById('cfgPreFilterPort').checked ? 'block' : 'none';
-      if (saved.preFilterPorts && Array.isArray(saved.preFilterPorts) && saved.preFilterPorts.length > 0) {
-        document.getElementById('cfgPreFilterPorts').value = saved.preFilterPorts.join(',');
+      if (saved.portFilterEnabled !== undefined) {
+        document.getElementById('cfgPortFilter').checked = saved.portFilterEnabled;
+        document.getElementById('portFilterRow').style.display = saved.portFilterEnabled ? 'block' : 'none';
       }
-      document.getElementById('cfgPreFilterBlocked').checked = saved.preFilterBlockedEnabled !== undefined ? saved.preFilterBlockedEnabled : true;
-      document.getElementById('preFilterBlockedRow').style.display = document.getElementById('cfgPreFilterBlocked').checked ? 'block' : 'none';
-      if (saved.preFilterBlockedCountries && Array.isArray(saved.preFilterBlockedCountries) && saved.preFilterBlockedCountries.length > 0) {
-        document.getElementById('cfgPreFilterBlockedCountries').value = saved.preFilterBlockedCountries.join(',');
+      if (saved.filterPorts && Array.isArray(saved.filterPorts) && saved.filterPorts.length > 0) {
+        document.getElementById('cfgPorts').value = saved.filterPorts.join(',');
+      }
+      if (saved.blockCountryEnabled !== undefined) {
+        document.getElementById('cfgBlockCountry').checked = saved.blockCountryEnabled;
+        document.getElementById('blockCountryRow').style.display = saved.blockCountryEnabled ? 'block' : 'none';
+      }
+      if (saved.blockedCountries && Array.isArray(saved.blockedCountries) && saved.blockedCountries.length > 0) {
+        document.getElementById('cfgBlockedCountries').value = saved.blockedCountries.join(',');
+      }
+      if (saved.useDirectIP !== undefined) {
+        document.getElementById('cfgUseDirectIP').checked = saved.useDirectIP;
+        toggleDataSource();
+      }
+      if (saved.sourceURLs && Array.isArray(saved.sourceURLs) && saved.sourceURLs.length > 0) {
+        document.getElementById('cfgSources').value = saved.sourceURLs.join('\n');
+      }
+      if (saved.directIPs && Array.isArray(saved.directIPs) && saved.directIPs.length > 0) {
+        document.getElementById('cfgDirectIPs').value = saved.directIPs.join('\n');
       }
     }
   } catch(e) {}
 }
 loadConfig();
 
-function toggleDataSource() {
-  const useURL = document.getElementById('cfgUseURLSource').checked;
-  document.getElementById('urlSourceRow').style.display = useURL ? 'block' : 'none';
-  document.getElementById('directIPRow').style.display = useURL ? 'none' : 'block';
+function togglePortFilter() {
+  const show = document.getElementById('cfgPortFilter').checked;
+  document.getElementById('portFilterRow').style.display = show ? 'block' : 'none';
   saveConfig();
 }
 
-function importFile() {
-  const fileInput = document.getElementById('cfgFileInput');
-  const file = fileInput.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    let text = e.target.result;
-    const isCSV = file.name.toLowerCase().endsWith('.csv');
-    if (isCSV) {
-      const lines = text.split('\n').filter(l => l.trim());
-      const converted = [];
-      for (let i = 0; i < lines.length; i++) {
-        const cols = lines[i].split(/[,，]/).map(s => s.trim().replace(/^"|"$/g, ''));
-        if (cols.length < 2) continue;
-        let ip = '', port = '', cc = '';
-        for (let j = 0; j < cols.length; j++) {
-          const v = cols[j];
-          if (/^\d+\.\d+\.\d+\.\d+$/.test(v)) ip = v;
-          else if (/^\d+$/.test(v) && v.length <= 5) port = v;
-          else if (/^[A-Z]{2}$/.test(v)) cc = v;
-        }
-        if (ip && port) {
-          let line = ip + ':' + port;
-          if (cc) line += '#' + cc;
-          converted.push(line);
-        }
-      }
-      text = converted.join('\n');
-    }
-    const ta = document.getElementById('cfgDirectIPs');
-    if (ta.value.trim()) {
-      ta.value += '\n' + text;
-    } else {
-      ta.value = text;
-    }
-    fileInput.value = '';
-    saveConfig();
+function toggleBlockCountry() {
+  const show = document.getElementById('cfgBlockCountry').checked;
+  document.getElementById('blockCountryRow').style.display = show ? 'block' : 'none';
+  saveConfig();
+}
+
+function toggleDataSource() {
+  const useDirect = document.getElementById('cfgUseDirectIP').checked;
+  document.getElementById('urlSourceSection').style.display = useDirect ? 'none' : 'block';
+  document.getElementById('directIPSection').style.display = useDirect ? 'block' : 'none';
+  saveConfig();
+}
+
+function importIPFile() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.txt,.csv';
+  input.onchange = function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function() {
+      const text = reader.result;
+      const existing = document.getElementById('cfgDirectIPs').value.trim();
+      const lines = text.split('\n').map(s => s.trim()).filter(s => s);
+      const merged = existing ? existing + '\n' + lines.join('\n') : lines.join('\n');
+      document.getElementById('cfgDirectIPs').value = merged;
+      saveConfig();
+    };
+    reader.readAsText(file);
   };
-  reader.readAsText(file);
+  input.click();
 }
 
 function clearDirectIPs() {
@@ -575,6 +602,7 @@ function clearDirectIPs() {
 }
 
 function resetConfig() {
+  localStorage.removeItem('cfnbConfig');
   document.getElementById('cfgBandwidthSize').value = '1';
   document.getElementById('cfgCandidates').value = '150';
   document.getElementById('cfgMode').value = 'global';
@@ -582,34 +610,23 @@ function resetConfig() {
   document.getElementById('cfgPerCountryTopN').value = '1';
   document.getElementById('cfgTCPProbes').value = '1';
   document.getElementById('cfgTCPWorkers').value = '300';
-  document.getElementById('cfgTCPTimeout').value = '2';
-  document.getElementById('cfgMinSuccessRate').value = '1.0';
+  document.getElementById('cfgTCPTimeout').value = '3';
   document.getElementById('cfgBWWorkers').value = '3';
-  document.getElementById('cfgBandwidthTimeout').value = '3';
+  document.getElementById('cfgBWTimeout').value = '3';
+  document.getElementById('cfgMinSuccessRate').value = '100';
   document.getElementById('cfgAvailability').checked = true;
   document.getElementById('cfgHTTPTest').checked = true;
+  document.getElementById('cfgPortFilter').checked = false;
+  document.getElementById('portFilterRow').style.display = 'none';
+  document.getElementById('cfgPorts').value = '443,8443,2053,2096,2087,2083';
+  document.getElementById('cfgBlockCountry').checked = false;
+  document.getElementById('blockCountryRow').style.display = 'none';
+  document.getElementById('cfgBlockedCountries').value = 'KR';
+  document.getElementById('cfgUseDirectIP').checked = false;
+  document.getElementById('urlSourceSection').style.display = 'block';
+  document.getElementById('directIPSection').style.display = 'none';
   document.getElementById('cfgSources').value = 'https://zip.cm.edu.kg/all.txt';
-  document.getElementById('cfgUseURLSource').checked = true;
   document.getElementById('cfgDirectIPs').value = '';
-  document.getElementById('cfgPreFilterPort').checked = true;
-  document.getElementById('cfgPreFilterBlocked').checked = true;
-  document.getElementById('cfgPreFilterPorts').value = '443';
-  document.getElementById('cfgPreFilterBlockedCountries').value = 'CN';
-  togglePreFilterPort();
-  togglePreFilterBlocked();
-  toggleDataSource();
-  saveConfig();
-}
-
-function togglePreFilterPort() {
-  const show = document.getElementById('cfgPreFilterPort').checked;
-  document.getElementById('preFilterPortRow').style.display = show ? 'block' : 'none';
-  saveConfig();
-}
-
-function togglePreFilterBlocked() {
-  const show = document.getElementById('cfgPreFilterBlocked').checked;
-  document.getElementById('preFilterBlockedRow').style.display = show ? 'block' : 'none';
   saveConfig();
 }
 
@@ -622,19 +639,19 @@ function startPipeline() {
     perCountryTopN: parseInt(document.getElementById('cfgPerCountryTopN').value) || 1,
     tcpProbes: parseInt(document.getElementById('cfgTCPProbes').value) || 1,
     tcpWorkers: parseInt(document.getElementById('cfgTCPWorkers').value) || 300,
-    tcpTimeout: parseFloat(document.getElementById('cfgTCPTimeout').value) || 2,
-    minSuccessRate: parseFloat(document.getElementById('cfgMinSuccessRate').value) || 1.0,
+    tcpTimeout: parseFloat(document.getElementById('cfgTCPTimeout').value) || 3,
     bandwidthWorkers: parseInt(document.getElementById('cfgBWWorkers').value) || 3,
-    bandwidthTimeout: parseFloat(document.getElementById('cfgBandwidthTimeout').value) || 3,
+    bandwidthTimeout: parseFloat(document.getElementById('cfgBWTimeout').value) || 3,
+    minSuccessRate: parseInt(document.getElementById('cfgMinSuccessRate').value) || 100,
     testAvailability: document.getElementById('cfgAvailability').checked,
     httpTestEnabled: document.getElementById('cfgHTTPTest').checked,
+    preFilterPortEnabled: document.getElementById('cfgPortFilter').checked,
+    preFilterPorts: document.getElementById('cfgPorts').value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
+    preFilterBlockedEnabled: document.getElementById('cfgBlockCountry').checked,
+    preFilterBlockedCountries: document.getElementById('cfgBlockedCountries').value.split(',').map(s => s.trim().toUpperCase()).filter(s => s),
+    useURLSource: !document.getElementById('cfgUseDirectIP').checked,
     sourceURLs: document.getElementById('cfgSources').value.split('\n').map(s => s.trim()).filter(s => s),
-    useURLSource: document.getElementById('cfgUseURLSource').checked,
-    directIPs: document.getElementById('cfgDirectIPs').value.split('\n').map(s => s.trim()).filter(s => s),
-    preFilterPortEnabled: document.getElementById('cfgPreFilterPort').checked,
-    preFilterPorts: document.getElementById('cfgPreFilterPorts').value.split(/[,，\s]+/).map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
-    preFilterBlockedEnabled: document.getElementById('cfgPreFilterBlocked').checked,
-    preFilterBlockedCountries: document.getElementById('cfgPreFilterBlockedCountries').value.split(/[,，\s]+/).map(s => s.trim().toUpperCase()).filter(s => s)
+    directIPs: document.getElementById('cfgDirectIPs').value.split('\n').map(s => s.trim()).filter(s => s)
   };
   fetch('/api/run', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(cfg) })
     .then(r => r.json())
@@ -714,8 +731,10 @@ function estimateProgress(p) {
 function updateLogs(logs) {
   const panel = document.getElementById('logPanel');
   if (!logs || logs.length === 0) return;
-  panel.innerHTML = '';
-  logs.forEach(l => {
+  const existing = panel.querySelectorAll('.log-line').length;
+  if (existing >= logs.length) return;
+  for (let i = existing; i < logs.length; i++) {
+    const l = logs[i];
     const div = document.createElement('div');
     div.className = 'log-line';
     if (l.includes('ERROR') || l.includes('错误')) div.className += ' error';
@@ -728,9 +747,26 @@ function updateLogs(logs) {
     else if (l.includes('失败') || l.includes('跳过')) div.className += ' warn';
     div.textContent = l;
     panel.appendChild(div);
-  });
+  }
   panel.scrollTop = panel.scrollHeight;
 }
+
+function toggleTheme() {
+  const html = document.documentElement;
+  const isLight = html.classList.toggle('light-theme');
+  localStorage.setItem('cfnbTheme', isLight ? 'light' : 'dark');
+  document.getElementById('themeBtn').innerHTML = isLight ? '&#9790;' : '&#9681;';
+}
+
+function loadTheme() {
+  const saved = localStorage.getItem('cfnbTheme');
+  if (saved === 'light') {
+    document.documentElement.classList.add('light-theme');
+    document.getElementById('themeBtn').innerHTML = '&#9790;';
+  }
+}
+
+loadTheme();
 
 function updateStatusPanel(s) {
   const panel = document.getElementById('statusPanel');
@@ -750,7 +786,7 @@ function updateStatusPanel(s) {
       </div>
     `;
   } else if (s.running) {
-    const labels = ['Phase 1/6: 获取数据源','Phase 2/6: TCP 测试','Phase 3/6: 可用性筛选','Phase 4/6: HTTP 检测','Phase 5/6: 带宽测速','Phase 6/6: 完成'];
+    const labels = ['Phase 2/6: 获取数据源','Phase 3/6: TCP 测试','Phase 4/6: 可用性筛选','Phase 4/6: HTTP 检测','Phase 5/6: 带宽测速','Phase 6/6: 完成'];
     panel.innerHTML = '<div style="display:flex;flex-direction:column;gap:5px">' +
       labels.map((p,i) => {
         let icon = '<span style="color:var(--text-muted);margin-right:8px">&#9679;</span>';
