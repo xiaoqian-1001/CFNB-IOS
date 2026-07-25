@@ -43,14 +43,19 @@ jobs:
           file cfnb
           file cfnb-server
       
-      - name: Create minimal Xcode project (for code signature packaging)
+      - name: Create Info.plist and bundle structure
         run: |
           cd ${{ github.workspace }}
           
-          mkdir -p CFNB.xcodeproj/project.xcworkspace
+          # Create app bundle directory
+          mkdir -p Payload/CFNB.app
           
-          # Create a super simple Info.plist
-          cat > Info.plist << 'EOF'
+          # Copy Go binaries
+          cp cfnb-go/cfnb-server Payload/CFNB.app/cfnb-server
+          chmod +x Payload/CFNB.app/cfnb-server
+          
+          # Create Info.plist for the bundle
+          cat > Payload/CFNB.app/Info.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -69,6 +74,8 @@ jobs:
               <string>APPL</string>
               <key>MinimumOSVersion</key>
               <string>12.0</string>
+              <key>NSExtensionPointIdentifier</key>
+              <string>com.apple.UIKit.app</string>
               <key>NSAppTransportSecurity</key>
               <dict>
                   <key>NSAllowsArbitraryLoads</key>
@@ -78,207 +85,25 @@ jobs:
           </plist>
           EOF
           
-          # Create an empty main.swift to satisfy Xcode requirements
-          echo '// placeholder' > main.swift
-          
-          echo "Minimal project structure created"
-          ls -la
-      
-      - name: Generate project.pbxproj and Scheme
-        run: |
-          cd ${{ github.workspace }}
-          
-          cp -r cfnb-go/web CFNB.app.web
-          
-          cat > CFNB.xcodeproj/project.pbxproj << 'EOFPROJ'
-          // !$*UTF8*$!
-          {
-          	archiveVersion = 1;
-          	classes = { };
-          	objectVersion = 50;
-          	objects = {
-          /* Begin PBXBuildFile section */
-          		F1000001 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000101; };
-          /* End PBXBuildFile section */
-          /* Begin PBXFileReference section */
-          		F1000101 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
-          		F1000102 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-          		F1000103 /* CFNB.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CFNB.app; sourceTree = BUILT_PRODUCTS_DIR; };
-          /* End PBXFileReference section */
-          /* Begin PBXGroup section */
-          		F1000201 = {isa = PBXGroup; children = (F1000301,); sourceTree = "<group>"; };
-          		F1000301 /* */ = {isa = PBXGroup; children = (F1000101, F1000102); path = ""; sourceTree = "<group>"; };
-          /* End PBXGroup section */
-          /* Begin PBXNativeTarget section */
-          		F10003T1 /* CFNB */ = {
-          			isa = PBXNativeTarget;
-          			buildConfigurationList = F1000502;
-          			buildPhases = (F10004S1, F10004R1, F10004F1);
-          			buildRules = ( );
-          			dependencies = ( );
-          			name = CFNB;
-          			productName = CFNB;
-          			productReference = F1000103;
-          			productType = "com.apple.product-type.application";
-          		};
-          /* End PBXNativeTarget section */
-          /* Begin PBXProject section */
-          		F1000901 = {
-          			isa = PBXProject;
-          			attributes = { BuildIndependentTargetsInParallel = 1; };
-          			buildConfigurationList = F1000501;
-          			compatibilityVersion = "Xcode 12";
-          			developmentRegion = en;
-          			hasScannedForEncodings = 0;
-          			knownRegions = ( en, Base );
-          			mainGroup = F1000201;
-          			productRefGroup = F1000301;
-          			projectDirPath = "";
-          			projectRoot = "";
-          			targets = (F10003T1,);
-          		};
-          /* End PBXProject section */
-          /* Begin PBXResourcesBuildPhase section */
-          		F10004R1 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
-          /* End PBXResourcesBuildPhase section */
-          /* Begin PBXSourcesBuildPhase section */
-          		F10004S1 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ( F1000001, ); runOnlyForDeploymentPostprocessing = 0; };
-          /* End PBXSourcesBuildPhase section */
-          /* Begin PBXFrameworksBuildPhase section */
-          		F10004F1 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
-          /* End PBXFrameworksBuildPhase section */
-          /* Begin XCBuildConfiguration section */
-          		F1000A01 /* Debug */ = {
-          			isa = XCBuildConfiguration;
-          			buildSettings = {
-          				CODE_SIGN_IDENTITY = "";
-          				CODE_SIGNING_REQUIRED = NO;
-          				CODE_SIGNING_ALLOWED = NO;
-          				GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)");
-          				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
-          				ONLY_ACTIVE_ARCH = YES;
-          				SDKROOT = iphoneos;
-          				TARGETED_DEVICE_FAMILY = "1,2";
-          			};
-          			name = Debug;
-          		};
-          		F1000902 /* Release */ = {
-          			isa = XCBuildConfiguration;
-          			buildSettings = {
-          				CODE_SIGN_IDENTITY = "";
-          				CODE_SIGNING_REQUIRED = NO;
-          				CODE_SIGNING_ALLOWED = NO;
-          				INFOPLIST_FILE = Info.plist;
-          				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
-          				PRODUCT_BUNDLE_IDENTIFIER = com.cfnb.app;
-          				PRODUCT_NAME = CFNB;
-          				SWIFT_EMIT_LOC_STRINGS = YES;
-          				SWIFT_VERSION = 5.0;
-          				TARGETED_DEVICE_FAMILY = "1,2";
-          			};
-          			name = Release;
-          		};
-          /* End XCBuildConfiguration section */
-          /* Begin XCConfigurationList section */
-          		F1000501 /* Build configuration list for PBXProject "CFNB" */ = {
-          			isa = XCConfigurationList;
-          			buildConfigurations = ( F1000A01, F1000902 );
-          			defaultConfigurationIsVisible = 0;
-          		};
-          		F1000502 /* Build configuration list for PBXNativeTarget "CFNB" */ = {
-          			isa = XCConfigurationList;
-          			buildConfigurations = ( F1000A01, F1000902 );
-          			defaultConfigurationIsVisible = 0;
-          		};
-          /* End XCConfigurationList section */
-          		
-          	};
-          	rootObject = F1000901;
-          }
-          EOFPROJ
-          
-          # Create shared scheme
-          mkdir -p CFNB.xcodeproj/xcshareddata/xcschemes
-          cat > CFNB.xcodeproj/xcshareddata/xcschemes/CFNB.xcscheme << 'SCHEME_EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <Scheme Version="1.7">
-            <BuildAction parallelizeBuildables="YES" buildImplicitTargets="YES">
-              <BuildActionEntries>
-                <BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">
-                  <BuildableReference
-                    BuildableIdentifier="primary"
-                    BlueprintPath="project.pbxproj"
-                    BlueprintIdentifier="F10003T1"
-                    BuildableName="CFNB.app"
-                    BlueprintName="CFNB"
-                    ReferencedContainer="container:CFNB.xcodeproj">
-                  </BuildableReference>
-                </BuildActionEntry>
-              </BuildActionEntries>
-            </BuildAction>
-          </Scheme>
-          SCHEME_EOF
-          
-          echo "PBXProj and Scheme generated"
-          ls -la CFNB.xcodeproj/xcshareddata/xcschemes/
-      
-      - name: Archive
-        run: |
-          cd ${{ github.workspace }}
-          
-          xcodebuild archive \
-            -scheme CFNB \
-            -configuration Release \
-            -destination generic/platform=iOS \
-            -archivePath build/CFNB.xcarchive \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            SYMROOT=$GITHUB_WORKSPACE/build/SYM \
-            OBJROOT=$GITHUB_WORKSPACE/build/OBJ \
-            BUILD_DIR=$GITHUB_WORKSPACE/build \
-            ONLY_ACTIVE_ARCH=NO
-      
-      - name: Export IPA
-        run: |
-          cd ${{ github.workspace }}
-          
-          # Verify xcarchive exists
-          if [ ! -d "build/CFNB.xcarchive" ]; then
-            echo "ERROR: xcarchive not found!"
-            exit 1
+          # Copy web assets
+          if [ -d "cfnb-go/web" ]; then
+            cp -r cfnb-go/web Payload/CFNB.app/web
           fi
           
-          # Copy Go binaries into the xcarchive's Products/Applications
-          APP_IN_XCA="build/CFNB.xcarchive/Products/Applications/CFNB.app"
-          mkdir -p "$APP_IN_XCA"
-          cp cfnb-go/cfnb-server "$APP_IN_XCA/cfnb-server"
-          chmod +x "$APP_IN_XCA/cfnb-server"
+          echo "Payload structure:"
+          find Payload -type f | sort
+      
+      - name: Package IPA (no Xcode needed)
+        run: |
+          cd ${{ github.workspace }}
           
-          # Copy web assets (if available)
-          if [ -d "CFNB.app.web" ]; then
-            cp -r CFNB.app.web "$APP_IN_XCA/"
-          elif [ -d "cfnb-go/web" ]; then
-            cp -r cfnb-go/web "$APP_IN_XCA/web"
-          fi
-          
-          mkdir -p build/Payload
-          cp -r "$APP_IN_XCA" build/Payload/
-          
-          echo "Creating IPA via zip..."
+          # IPA is just a zip of Payload/
           cd build
           zip -r CFNB.ipa Payload/
           cd ..
           
-          if [ -f "build/CFNB.ipa" ]; then
-            echo "IPA created successfully at build/CFNB.ipa"
-            ls -lh build/CFNB.ipa
-          else
-            echo "ERROR: IPA file not found after zip"
-            find build -name "*.ipa" 2>/dev/null
-            ls -la build/
-            exit 1
-          fi
+          ls -lh build/CFNB.ipa
+          echo "IPA ready!"
       
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
