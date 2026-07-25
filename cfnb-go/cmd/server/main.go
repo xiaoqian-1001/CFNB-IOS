@@ -202,7 +202,9 @@ type RunConfig struct {
 	PerCountryTopN         int      `json:"perCountryTopN"`
 	TCPProbes              int      `json:"tcpProbes"`
 	TCPWorkers             int      `json:"tcpWorkers"`
+	TCPTimeout             float64  `json:"tcpTimeout"`
 	BandwidthWorkers       int      `json:"bandwidthWorkers"`
+	BandwidthTimeout       float64  `json:"bandwidthTimeout"`
 	TestAvailability       *bool    `json:"testAvailability"`
 	HTTPTestEnabled        *bool    `json:"httpTestEnabled"`
 	SourceURLs             []string `json:"sourceURLs"`
@@ -293,8 +295,14 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 	if rc.TCPWorkers > 0 {
 		cfg.MaxWorkers = rc.TCPWorkers
 	}
+	if rc.TCPTimeout > 0 {
+		cfg.Timeout = rc.TCPTimeout
+	}
 	if rc.BandwidthWorkers > 0 {
 		cfg.BandwidthWorkers = rc.BandwidthWorkers
+	}
+	if rc.BandwidthTimeout > 0 {
+		cfg.BandwidthTimeout = rc.BandwidthTimeout
 	}
 	if rc.Mode == "percountry" {
 		cfg.UseGlobalMode = false

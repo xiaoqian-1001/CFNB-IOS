@@ -334,6 +334,10 @@ tr:last-child td { border-bottom: none; }
         <input type="number" id="cfgTCPWorkers" value="300" min="10" max="1000" onchange="saveConfig()">
         <label>测速并发</label>
         <input type="number" id="cfgBWWorkers" value="3" min="1" max="50" onchange="saveConfig()">
+        <label>带宽超时 (s)</label>
+        <input type="number" id="cfgBandwidthTimeout" value="3" min="1" max="30" step="0.5" onchange="saveConfig()">
+        <label>TCP超时 (s)</label>
+        <input type="number" id="cfgTCPTimeout" value="2" min="1" max="30" step="0.5" onchange="saveConfig()">
       </div>
     </div>
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
@@ -444,7 +448,9 @@ function saveConfig() {
     perCountryTopN: parseInt(document.getElementById('cfgPerCountryTopN').value) || 1,
     tcpProbes: parseInt(document.getElementById('cfgTCPProbes').value) || 1,
     tcpWorkers: parseInt(document.getElementById('cfgTCPWorkers').value) || 300,
+    tcpTimeout: parseFloat(document.getElementById('cfgTCPTimeout').value) || 2,
     bandwidthWorkers: parseInt(document.getElementById('cfgBWWorkers').value) || 3,
+    bandwidthTimeout: parseFloat(document.getElementById('cfgBandwidthTimeout').value) || 3,
     testAvailability: document.getElementById('cfgAvailability').checked,
     httpTestEnabled: document.getElementById('cfgHTTPTest').checked,
     sourceURLs: document.getElementById('cfgSources').value.split('\n').map(s => s.trim()).filter(s => s),
@@ -467,7 +473,9 @@ function loadConfig() {
       document.getElementById('cfgPerCountryTopN').value = saved.perCountryTopN || 1;
       document.getElementById('cfgTCPProbes').value = saved.tcpProbes || 1;
       document.getElementById('cfgTCPWorkers').value = saved.tcpWorkers || 300;
+      document.getElementById('cfgTCPTimeout').value = saved.tcpTimeout || 2;
       document.getElementById('cfgBWWorkers').value = saved.bandwidthWorkers || 3;
+      document.getElementById('cfgBandwidthTimeout').value = saved.bandwidthTimeout || 3;
       if (saved.testAvailability !== undefined) document.getElementById('cfgAvailability').checked = saved.testAvailability;
       if (saved.httpTestEnabled !== undefined) document.getElementById('cfgHTTPTest').checked = saved.httpTestEnabled;
       if (saved.sourceURLs && Array.isArray(saved.sourceURLs) && saved.sourceURLs.length > 0) document.getElementById('cfgSources').value = saved.sourceURLs.join('\n');
@@ -507,7 +515,9 @@ function startPipeline() {
     perCountryTopN: parseInt(document.getElementById('cfgPerCountryTopN').value) || 1,
     tcpProbes: parseInt(document.getElementById('cfgTCPProbes').value) || 1,
     tcpWorkers: parseInt(document.getElementById('cfgTCPWorkers').value) || 300,
+    tcpTimeout: parseFloat(document.getElementById('cfgTCPTimeout').value) || 2,
     bandwidthWorkers: parseInt(document.getElementById('cfgBWWorkers').value) || 3,
+    bandwidthTimeout: parseFloat(document.getElementById('cfgBandwidthTimeout').value) || 3,
     testAvailability: document.getElementById('cfgAvailability').checked,
     httpTestEnabled: document.getElementById('cfgHTTPTest').checked,
     sourceURLs: document.getElementById('cfgSources').value.split('\n').map(s => s.trim()).filter(s => s),
