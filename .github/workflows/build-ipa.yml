@@ -39,9 +39,8 @@ jobs:
             CC="$CC" CXX="$CXX" CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" \
             go build -tags cfios -buildmode=c-archive -o ../libcfnb.a ./cmd/server/ 2>&1 || true
           
-          # Also build standalone binary for fallback
-          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
-            CC="$CC" CXX="$CXX" CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" \
+          # Also build standalone binary for fallback (pure Go, no CGO needed)
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 \
             go build -o cfnb-server ./cmd/server/
           
           ls -la ../libcfnb.a 2>/dev/null && echo "c-archive built" || echo "no c-archive (system() fallback)"
@@ -167,7 +166,9 @@ jobs:
           cat > main.m << 'OBJCEOF'
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
-          #import <stdlib.h>
+          #import <spawn.h>
+
+          extern char **environ;
 
           @interface AppDelegate : UIResponder <UIApplicationDelegate, WKNavigationDelegate>
           @property (strong, nonatomic) UIWindow *window;
@@ -198,7 +199,9 @@ jobs:
               NSString *serverPath = [bundlePath stringByAppendingPathComponent:@"cfnb-server"];
           
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                  system([[NSString stringWithFormat:@"'%@' > '%@/server.log' 2>&1 &", serverPath, bundlePath] UTF8String]);
+                  pid_t pid;
+                  const char *argv[] = {[serverPath UTF8String], NULL};
+                  posix_spawn(&pid, [serverPath UTF8String], NULL, NULL, (char *const *)argv, environ);
               });
           
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
@@ -232,12 +235,7 @@ jobs:
                           });
                       } else {
                           dispatch_async(dispatch_get_main_queue(), ^{
-                              NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
-                              NSString *logPath = [bundlePath stringByAppendingPathComponent:@"server.log"];
-                              NSString *logContent = [NSString stringWithContentsOfFile:logPath encoding:NSUTF8StringEncoding error:nil];
-                              if (!logContent) logContent = @"(no log)";
-                              NSString *escaped = [[[[logContent stringByReplacingOccurrencesOfString:@"&" withString:@"&amp;"] stringByReplacingOccurrencesOfString:@"<" withString:@"&lt;"] stringByReplacingOccurrencesOfString:@">" withString:@"&gt;"] stringByReplacingOccurrencesOfString:@"\n" withString:@"<br>"];
-                              NSString *err = [NSString stringWithFormat:@"<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><style>body{background:#0d1117;color:#f85149;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-size:12px;overflow:auto;padding:20px;box-sizing:border-box}pre{white-space:pre-wrap;word-break:break-all}</style></head><body><div><p style='font-size:14px;color:#d29922'>Server failed to start (15 retries)</p><pre style='color:#8b949e'>%@</pre></div></body></html>", escaped];
+                              NSString *err = @"<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><style>body{background:#0d1117;color:#f85149;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-size:13px}</style></head><body>Server failed to start. iOS may block subprocess spawning.</body></html>";
                               [self.webView loadHTMLString:err baseURL:nil];
                           });
                       }
@@ -270,7 +268,7 @@ jobs:
           }
           OBJCEOF
           
-          echo "=== Compiling ObjC with system() fallback ==="
+          echo "=== Compiling ObjC with posix_spawn ==="
           clang -arch arm64 -isysroot "$SDK_PATH" \
             -miphoneos-version-min=12.0 \
             -framework UIKit -framework WebKit -framework Foundation \
