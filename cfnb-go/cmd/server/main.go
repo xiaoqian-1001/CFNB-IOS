@@ -203,6 +203,7 @@ type RunConfig struct {
 	TCPProbes              int      `json:"tcpProbes"`
 	TCPWorkers             int      `json:"tcpWorkers"`
 	TCPTimeout             float64  `json:"tcpTimeout"`
+	MinSuccessRate         float64  `json:"minSuccessRate"`
 	BandwidthWorkers       int      `json:"bandwidthWorkers"`
 	BandwidthTimeout       float64  `json:"bandwidthTimeout"`
 	TestAvailability       *bool    `json:"testAvailability"`
@@ -297,6 +298,9 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 	}
 	if rc.TCPTimeout > 0 {
 		cfg.Timeout = rc.TCPTimeout
+	}
+	if rc.MinSuccessRate > 0 {
+		cfg.MinSuccessRate = rc.MinSuccessRate
 	}
 	if rc.BandwidthWorkers > 0 {
 		cfg.BandwidthWorkers = rc.BandwidthWorkers

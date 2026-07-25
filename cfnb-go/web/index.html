@@ -338,6 +338,15 @@ tr:last-child td { border-bottom: none; }
         <input type="number" id="cfgBandwidthTimeout" value="3" min="1" max="30" step="0.5" onchange="saveConfig()">
         <label>TCP超时 (s)</label>
         <input type="number" id="cfgTCPTimeout" value="2" min="1" max="30" step="0.5" onchange="saveConfig()">
+        <label>最低成功率</label>
+        <select id="cfgMinSuccessRate" onchange="saveConfig()">
+          <option value="0.5">50%</option>
+          <option value="0.6">60%</option>
+          <option value="0.7">70%</option>
+          <option value="0.8">80%</option>
+          <option value="0.9">90%</option>
+          <option value="1.0" selected>100%</option>
+        </select>
       </div>
     </div>
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
@@ -449,6 +458,7 @@ function saveConfig() {
     tcpProbes: parseInt(document.getElementById('cfgTCPProbes').value) || 1,
     tcpWorkers: parseInt(document.getElementById('cfgTCPWorkers').value) || 300,
     tcpTimeout: parseFloat(document.getElementById('cfgTCPTimeout').value) || 2,
+    minSuccessRate: parseFloat(document.getElementById('cfgMinSuccessRate').value) || 1.0,
     bandwidthWorkers: parseInt(document.getElementById('cfgBWWorkers').value) || 3,
     bandwidthTimeout: parseFloat(document.getElementById('cfgBandwidthTimeout').value) || 3,
     testAvailability: document.getElementById('cfgAvailability').checked,
@@ -474,6 +484,7 @@ function loadConfig() {
       document.getElementById('cfgTCPProbes').value = saved.tcpProbes || 1;
       document.getElementById('cfgTCPWorkers').value = saved.tcpWorkers || 300;
       document.getElementById('cfgTCPTimeout').value = saved.tcpTimeout || 2;
+      document.getElementById('cfgMinSuccessRate').value = saved.minSuccessRate || 1.0;
       document.getElementById('cfgBWWorkers').value = saved.bandwidthWorkers || 3;
       document.getElementById('cfgBandwidthTimeout').value = saved.bandwidthTimeout || 3;
       if (saved.testAvailability !== undefined) document.getElementById('cfgAvailability').checked = saved.testAvailability;
@@ -516,6 +527,7 @@ function startPipeline() {
     tcpProbes: parseInt(document.getElementById('cfgTCPProbes').value) || 1,
     tcpWorkers: parseInt(document.getElementById('cfgTCPWorkers').value) || 300,
     tcpTimeout: parseFloat(document.getElementById('cfgTCPTimeout').value) || 2,
+    minSuccessRate: parseFloat(document.getElementById('cfgMinSuccessRate').value) || 1.0,
     bandwidthWorkers: parseInt(document.getElementById('cfgBWWorkers').value) || 3,
     bandwidthTimeout: parseFloat(document.getElementById('cfgBandwidthTimeout').value) || 3,
     testAvailability: document.getElementById('cfgAvailability').checked,
