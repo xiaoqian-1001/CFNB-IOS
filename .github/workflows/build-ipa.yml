@@ -97,9 +97,11 @@ jobs:
         run: |
           cd ${{ github.workspace }}
           
+          mkdir -p build
+          
           # IPA is just a zip of Payload/
           cd build
-          zip -r CFNB.ipa Payload/
+          zip -r CFNB.ipa ../Payload/
           cd ..
           
           ls -lh build/CFNB.ipa
