@@ -219,6 +219,8 @@ func ParseAdaptiveWithFallback(text string, availabilityAPI string, connectTimeo
 	for ipport, code := range resolved {
 		if code != "" {
 			parsed = append(parsed, fmt.Sprintf("%s#%s", ipport, code))
+		} else {
+			parsed = append(parsed, ipport)
 		}
 	}
 
@@ -398,6 +400,8 @@ func ParseWithFallback(text string, availabilityAPI string, connectTimeout, read
 	for ipport, code := range resolved {
 		if code != "" {
 			parsed = append(parsed, fmt.Sprintf("%s#%s", ipport, code))
+		} else {
+			parsed = append(parsed, ipport)
 		}
 	}
 
