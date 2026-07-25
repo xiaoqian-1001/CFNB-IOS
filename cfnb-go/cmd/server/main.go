@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -14,6 +16,10 @@ import (
 	"sync"
 	"time"
 )
+
+//go:embed web/*
+var embeddedWeb embed.FS
+var webFS fs.FS
 
 type PipelineStatus struct {
 	Running  bool            `json:"running"`
@@ -43,18 +49,14 @@ var (
 	notifMu sync.Mutex
 )
 
-func main() {
+func RunServer(port string) {
 	http.HandleFunc("/", middlewareCORS(serveIndex))
 	http.HandleFunc("/api/run", middlewareCORS(handleRun))
 	http.HandleFunc("/api/events", middlewareCORS(handleEvents))
 	http.HandleFunc("/api/status", middlewareCORS(handleStatus))
 
-	port := "8080"
-	if p := os.Getenv("PORT"); p != "" {
-		port = p
-	}
-
 	fmt.Printf("CFNB Web Dashboard starting on :%s\n", port)
+	fmt.Fprintf(os.Stderr, "CFNB Web Dashboard starting on :%s\n", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
 		os.Exit(1)
@@ -74,15 +76,41 @@ func middlewareCORS(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func init() { log.SetFlags(0) }
+func init() {
+	log.SetFlags(0)
+	var err error
+	webFS, err = fs.Sub(embeddedWeb, "web")
+	if err != nil {
+		log.Fatalf("Failed to init embedded web FS: %v", err)
+	}
+}
 
 func serveIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
+	if webFS != nil {
+		// Try serving from embedded filesystem first
+		f, err := webFS.Open(r.URL.Path)
+		if err == nil {
+			defer f.Close()
+			stat, _ := f.Stat()
+			if stat != nil && !stat.IsDir() {
+				data, _ := io.ReadAll(f)
+				ct := "text/plain"
+				switch {
+				case strings.HasSuffix(r.URL.Path, ".html"):
+					ct = "text/html; charset=utf-8"
+				case strings.HasSuffix(r.URL.Path, ".css"):
+					ct = "text/css; charset=utf-8"
+				case strings.HasSuffix(r.URL.Path, ".js"):
+					ct = "application/javascript; charset=utf-8"
+				}
+				w.Header().Set("Content-Type", ct)
+				w.Write(data)
+				return
+			}
+		}
 	}
 
-	// Try WEB_DIR env var first (for iOS bundling)
+	// Fallback to external WEB_DIR
 	if webDir := os.Getenv("WEB_DIR"); webDir != "" {
 		webPath := filepath.Join(webDir, "index.html")
 		if _, err := os.Stat(webPath); err == nil {
@@ -94,12 +122,9 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 	exePath, _ := os.Executable()
 	workDir := filepath.Dir(exePath)
 	webPath := filepath.Join(workDir, "web", "index.html")
-
 	if _, err := os.Stat(webPath); os.IsNotExist(err) {
-		// Fallback: look for web/ relative to current directory
 		webPath = "web/index.html"
 	}
-
 	http.ServeFile(w, r, webPath)
 }
 
@@ -419,4 +444,4 @@ func countryName(code string) string {
 	return code
 }
 
-func init() { log.SetFlags(0) }
+

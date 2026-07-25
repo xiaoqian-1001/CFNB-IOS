@@ -25,21 +25,27 @@ jobs:
         working-directory: ${{ github.workspace }}/cfnb-go
         run: |
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path 2>/dev/null)
-          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
-            CC="$(xcrun -sdk iphoneos find clang)" \
-            CXX="$(xcrun -sdk iphoneos find clang++)" \
-            CFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
-            CXXFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
-            go build -o cfnb .
           
+          CFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0"
+          CXXFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0"
+          CC="$(xcrun -sdk iphoneos find clang)"
+          CXX="$(xcrun -sdk iphoneos find clang++)"
+          
+          # Copy web/ into cmd/server/ so embed can pick it up
+          cp -r web cmd/server/web
+          
+          # Build c-archive (static library) for in-process linking
           CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
-            CC="$(xcrun -sdk iphoneos find clang)" \
-            CXX="$(xcrun -sdk iphoneos find clang++)" \
-            CFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
-            CXXFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
+            CC="$CC" CXX="$CXX" CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" \
+            go build -buildmode=c-archive -o ../libcfnb.a ./cmd/server/ 2>&1 || true
+          
+          # Also build standalone binary for fallback
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
+            CC="$CC" CXX="$CXX" CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" \
             go build -o cfnb-server ./cmd/server/
           
-          file cfnb
+          ls -la ../libcfnb.a 2>/dev/null && echo "c-archive built" || echo "no c-archive (system() fallback)"
+          ls -la ../libcfnb.h 2>/dev/null || echo "no libcfnb.h"
           file cfnb-server
       
       - name: Build ObjC app binary
@@ -48,153 +54,237 @@ jobs:
           
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           
-          cat > main.m << 'OBJCEOF'
-          #import <UIKit/UIKit.h>
-          #import <WebKit/WebKit.h>
-          #import <spawn.h>
-          #import <sys/wait.h>
-          
-          extern char **environ;
-          
-          @interface AppDelegate : UIResponder <UIApplicationDelegate, WKNavigationDelegate>
-          @property (strong, nonatomic) UIWindow *window;
-          @property (strong, nonatomic) WKWebView *webView;
-          @property (assign, nonatomic) int retryCount;
-          @end
-          
-          @implementation AppDelegate
-          
-          - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-              self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-              self.retryCount = 0;
-              
-              WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
-              self.webView = [[WKWebView alloc] initWithFrame:self.window.bounds configuration:config];
-              self.webView.navigationDelegate = self;
-              self.webView.backgroundColor = [UIColor colorWithRed:0.05 green:0.07 blue:0.09 alpha:1.0];
-              self.webView.opaque = NO;
-          
-              UIViewController *vc = [[UIViewController alloc] init];
-              vc.view = self.webView;
-              self.window.rootViewController = vc;
-              [self.window makeKeyAndVisible];
-          
-              // Show loading HTML immediately
-              [self showLoading];
-          
-              // Start Go server in background
-              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                  [self startServer];
-              });
-          
-              return YES;
-          }
-          
-          - (void)showLoading {
-              NSString *html = @"<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><style>body{background:#0d1117;color:#8b949e;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column}@keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}div{width:40px;height:40px;border:3px solid #30363d;border-top-color:#58a6ff;border-radius:50%;animation:spin 1s infinite;margin-bottom:16px}p{font-size:13px;margin:4px 0}</style></head><body><div></div><p>Starting CFNB Server...</p><p style='font-size:11px;color:#484f58'>Cloudflare IP Optimizer</p></body></html>";
-              [self.webView loadHTMLString:html baseURL:nil];
-          }
-          
-          - (void)startServer {
-              NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
-              NSString *serverPath = [bundlePath stringByAppendingPathComponent:@"cfnb-server"];
-              NSString *webDir = [bundlePath stringByAppendingPathComponent:@"web"];
-              
-              // Set env vars for the child process
-              setenv("PORT", "8080", 1);
-              setenv("WEB_DIR", [webDir UTF8String], 1);
-              
-              pid_t pid;
-              const char *argv[] = {[serverPath UTF8String], NULL};
-              
-              int ret = posix_spawn(&pid, [serverPath UTF8String], NULL, NULL, (char *const *)argv, environ);
-              if (ret != 0) {
-                  NSLog(@"posix_spawn failed: %d", ret);
-                  return;
-              }
-          
-              // Don't wait — let it run as daemon
-              NSLog(@"cfnb-server started with pid %d", pid);
-          
-              // Try loading the dashboard after delay
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  [self tryLoadDashboard];
-              });
-          }
-          
-          - (void)tryLoadDashboard {
-              self.retryCount++;
-              NSURL *url = [NSURL URLWithString:@"http://127.0.0.1:8080"];
-              NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
-              req.timeoutInterval = 5.0;
-          
-              NSURLSession *session = [NSURLSession sharedSession];
-              [[session dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-                  if (!error && [(NSHTTPURLResponse *)response statusCode] == 200) {
-                      dispatch_async(dispatch_get_main_queue(), ^{
-                          [self.webView loadRequest:[NSURLRequest requestWithURL:url]];
-                      });
-                  } else {
-                      NSLog(@"Dashboard not ready (retry %d): %@", self.retryCount, error);
-                      if (self.retryCount < 10) {
-                          dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                              [self tryLoadDashboard];
-                          });
-                      } else {
-                          dispatch_async(dispatch_get_main_queue(), ^{
-                              NSString *err = [NSString stringWithFormat:@"<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><style>body{background:#0d1117;color:#f85149;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-size:13px}</style></head><body>Server failed to start.<br/>Tried 10 times.</body></html>"];
-                              [self.webView loadHTMLString:err baseURL:nil];
-                          });
-                      }
-                  }
-              }] resume];
-          }
-          
-          - (void)webView:(WKWebView *)webView didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
-              NSLog(@"WebView error: %@", error);
-              if (self.retryCount < 10) {
-                  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                      [self tryLoadDashboard];
-                  });
-              }
-          }
-          
-          - (void)webView:(WKWebView *)webView didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error {
-              NSLog(@"WebView provisional error: %@", error);
-              if (self.retryCount < 10) {
-                  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                      [self tryLoadDashboard];
-                  });
-              }
-          }
-          
-          @end
-          
-          int main(int argc, char *argv[]) {
-              @autoreleasepool {
-                  return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
-              }
-          }
-          OBJCEOF
-          
-          echo "=== Compiling Objective-C app binary ==="
-          clang -arch arm64 -isysroot "$SDK_PATH" \
-            -miphoneos-version-min=12.0 \
-            -framework UIKit -framework WebKit -framework Foundation \
-            -fobjc-arc \
-            -o CFNB main.m
-          
-          if [ ! -f CFNB ]; then
-            echo "ERROR: Objective-C compilation failed!"
-            exit 1
+          if [ -f libcfnb.a ] && [ -f libcfnb.h ]; then
+            echo "=== Using c-archive (in-process Go server) ==="
+            
+            cat > main.m << 'OBJCEOF'
+            #import <UIKit/UIKit.h>
+            #import <WebKit/WebKit.h>
+            #include "libcfnb.h"
+
+            @interface AppDelegate : UIResponder <UIApplicationDelegate, WKNavigationDelegate>
+            @property (strong, nonatomic) UIWindow *window;
+            @property (strong, nonatomic) WKWebView *webView;
+            @property (assign, nonatomic) int retryCount;
+            @end
+
+            @implementation AppDelegate
+
+            - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+                self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+                self.retryCount = 0;
+                
+                WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
+                self.webView = [[WKWebView alloc] initWithFrame:self.window.bounds configuration:config];
+                self.webView.navigationDelegate = self;
+                self.webView.backgroundColor = [UIColor colorWithRed:0.05 green:0.07 blue:0.09 alpha:1.0];
+                self.webView.opaque = NO;
+            
+                UIViewController *vc = [[UIViewController alloc] init];
+                vc.view = self.webView;
+                self.window.rootViewController = vc;
+                [self.window makeKeyAndVisible];
+            
+                [self showLoading];
+            
+                StartServer("8080");
+            
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                    [self tryLoadDashboard];
+                });
+            
+                return YES;
+            }
+            
+            - (void)showLoading {
+                NSString *html = @"<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><style>body{background:#0d1117;color:#8b949e;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column}@keyframes s{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}d{width:40px;height:40px;border:3px solid #30363d;border-top-color:#58a6ff;border-radius:50%;animation:s 1s infinite;margin-bottom:16px}p{font-size:13px;margin:4px 0}</style></head><body><d></d><p>Starting CFNB Server...</p><p style='font-size:11px;color:#484f58'>Cloudflare IP Optimizer</p></body></html>";
+                [self.webView loadHTMLString:html baseURL:nil];
+            }
+            
+            - (void)tryLoadDashboard {
+                self.retryCount++;
+                NSURL *url = [NSURL URLWithString:@"http://127.0.0.1:8080"];
+                NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
+                req.timeoutInterval = 3.0;
+            
+                NSURLSession *session = [NSURLSession sharedSession];
+                [[session dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+                    if (!error && [(NSHTTPURLResponse *)response statusCode] == 200) {
+                        dispatch_async(dispatch_get_main_queue(), ^{
+                            [self.webView loadRequest:[NSURLRequest requestWithURL:url]];
+                        });
+                    } else {
+                        if (self.retryCount < 10) {
+                            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                                [self tryLoadDashboard];
+                            });
+                        } else {
+                            dispatch_async(dispatch_get_main_queue(), ^{
+                                NSString *err = [NSString stringWithFormat:@"<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><style>body{background:#0d1117;color:#f85149;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-size:13px}</style></head><body>Server failed to start. Tried 10 times.</body></html>"];
+                                [self.webView loadHTMLString:err baseURL:nil];
+                            });
+                        }
+                    }
+                }] resume];
+            }
+            
+            - (void)webView:(WKWebView *)webView didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
+                if (self.retryCount < 10) {
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                        [self tryLoadDashboard];
+                    });
+                }
+            }
+            
+            - (void)webView:(WKWebView *)webView didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error {
+                if (self.retryCount < 10) {
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                        [self tryLoadDashboard];
+                    });
+                }
+            }
+            
+            @end
+            
+            int main(int argc, char *argv[]) {
+                @autoreleasepool {
+                    return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
+                }
+            }
+            OBJCEOF
+            
+            echo "=== Compiling ObjC with c-archive ==="
+            clang -arch arm64 -isysroot "$SDK_PATH" \
+              -miphoneos-version-min=12.0 \
+              -framework UIKit -framework WebKit -framework Foundation \
+              -fobjc-arc \
+              -I. \
+              -o CFNB main.m libcfnb.a
+            
+          else
+            echo "=== No c-archive, using system() fallback ==="
+            
+            cat > main.m << 'OBJCEOF'
+            #import <UIKit/UIKit.h>
+            #import <WebKit/WebKit.h>
+
+            @interface AppDelegate : UIResponder <UIApplicationDelegate, WKNavigationDelegate>
+            @property (strong, nonatomic) UIWindow *window;
+            @property (strong, nonatomic) WKWebView *webView;
+            @property (assign, nonatomic) int retryCount;
+            @end
+
+            @implementation AppDelegate
+
+            - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+                self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+                self.retryCount = 0;
+                
+                WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
+                self.webView = [[WKWebView alloc] initWithFrame:self.window.bounds configuration:config];
+                self.webView.navigationDelegate = self;
+                self.webView.backgroundColor = [UIColor colorWithRed:0.05 green:0.07 blue:0.09 alpha:1.0];
+                self.webView.opaque = NO;
+            
+                UIViewController *vc = [[UIViewController alloc] init];
+                vc.view = self.webView;
+                self.window.rootViewController = vc;
+                [self.window makeKeyAndVisible];
+            
+                [self showLoading];
+            
+                NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
+                NSString *serverPath = [bundlePath stringByAppendingPathComponent:@"cfnb-server"];
+                NSString *webDir = [bundlePath stringByAppendingPathComponent:@"web"];
+                NSString *logPath = [bundlePath stringByAppendingPathComponent:@"server.log"];
+            
+                NSString *cmd = [NSString stringWithFormat:
+                    @"export PORT=8080; export WEB_DIR='%@'; '%@' > '%@' 2>&1 &",
+                    webDir, serverPath, logPath];
+            
+                dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                    system([cmd UTF8String]);
+                });
+            
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                    [self tryLoadDashboard];
+                });
+            
+                return YES;
+            }
+            
+            - (void)showLoading {
+                NSString *html = @"<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><style>body{background:#0d1117;color:#8b949e;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column}@keyframes s{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}d{width:40px;height:40px;border:3px solid #30363d;border-top-color:#58a6ff;border-radius:50%;animation:s 1s infinite;margin-bottom:16px}p{font-size:13px;margin:4px 0}</style></head><body><d></d><p>Starting CFNB Server...</p><p style='font-size:11px;color:#484f58'>Cloudflare IP Optimizer</p></body></html>";
+                [self.webView loadHTMLString:html baseURL:nil];
+            }
+            
+            - (void)tryLoadDashboard {
+                self.retryCount++;
+                NSURL *url = [NSURL URLWithString:@"http://127.0.0.1:8080"];
+                NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
+                req.timeoutInterval = 5.0;
+            
+                NSURLSession *session = [NSURLSession sharedSession];
+                [[session dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+                    if (!error && [(NSHTTPURLResponse *)response statusCode] == 200) {
+                        dispatch_async(dispatch_get_main_queue(), ^{
+                            [self.webView loadRequest:[NSURLRequest requestWithURL:url]];
+                        });
+                    } else {
+                        if (self.retryCount < 15) {
+                            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                                [self tryLoadDashboard];
+                            });
+                        } else {
+                            dispatch_async(dispatch_get_main_queue(), ^{
+                                NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
+                                NSString *logPath = [bundlePath stringByAppendingPathComponent:@"server.log"];
+                                NSString *logContent = [NSString stringWithContentsOfFile:logPath encoding:NSUTF8StringEncoding error:nil];
+                                if (!logContent) logContent = @"(no log)";
+                                NSString *escaped = [[[[logContent stringByReplacingOccurrencesOfString:@"&" withString:@"&amp;"] stringByReplacingOccurrencesOfString:@"<" withString:@"&lt;"] stringByReplacingOccurrencesOfString:@">" withString:@"&gt;"] stringByReplacingOccurrencesOfString:@"\n" withString:@"<br>"];
+                                NSString *err = [NSString stringWithFormat:@"<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><style>body{background:#0d1117;color:#f85149;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-size:12px;overflow:auto;padding:20px;box-sizing:border-box}pre{white-space:pre-wrap;word-break:break-all}</style></head><body><div><p style='font-size:14px;color:#d29922'>Server failed to start (15 retries)</p><pre style='color:#8b949e'>%@</pre></div></body></html>", escaped];
+                                [self.webView loadHTMLString:err baseURL:nil];
+                            });
+                        }
+                    }
+                }] resume];
+            }
+            
+            - (void)webView:(WKWebView *)webView didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
+                if (self.retryCount < 15) {
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                        [self tryLoadDashboard];
+                    });
+                }
+            }
+            
+            - (void)webView:(WKWebView *)webView didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error {
+                if (self.retryCount < 15) {
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                        [self tryLoadDashboard];
+                    });
+                }
+            }
+            
+            @end
+            
+            int main(int argc, char *argv[]) {
+                @autoreleasepool {
+                    return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
+                }
+            }
+            OBJCEOF
+            
+            echo "=== Compiling ObjC with system() fallback ==="
+            clang -arch arm64 -isysroot "$SDK_PATH" \
+              -miphoneos-version-min=12.0 \
+              -framework UIKit -framework WebKit -framework Foundation \
+              -fobjc-arc \
+              -o CFNB main.m
+            
+            # Still copy the standalone binary into the bundle for system() fallback
+            cp cfnb-go/cfnb-server .
           fi
-          
-          file CFNB
-          ls -la CFNB
-          echo "ObjC app binary compiled successfully"
-          
-          file CFNB
-          echo "Swift app binary compiled successfully"
       
       - name: Create app bundle and IPA
         run: |
@@ -203,9 +293,15 @@ jobs:
           mkdir -p Payload/CFNB.app
           
           cp CFNB Payload/CFNB.app/CFNB
-          cp cfnb-go/cfnb-server Payload/CFNB.app/cfnb-server
-          chmod +x Payload/CFNB.app/CFNB Payload/CFNB.app/cfnb-server
+          chmod +x Payload/CFNB.app/CFNB
           
+          # Copy standalone server binary if it exists (system() fallback)
+          if [ -f cfnb-server ]; then
+            cp cfnb-server Payload/CFNB.app/cfnb-server
+            chmod +x Payload/CFNB.app/cfnb-server
+          fi
+          
+          # Web files: used as fallback for system() mode; embed handles primary case
           cp -r cfnb-go/web Payload/CFNB.app/web
           
           cat > Payload/CFNB.app/Info.plist << 'EOF'
