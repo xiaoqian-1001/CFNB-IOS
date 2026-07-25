@@ -32,7 +32,6 @@ jobs:
             CXXFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
             go build -o cfnb .
           
-          # Also build the web server (with embedded web assets)
           CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
             CC="$(xcrun -sdk iphoneos find clang)" \
             CXX="$(xcrun -sdk iphoneos find clang++)" \
@@ -43,18 +42,115 @@ jobs:
           file cfnb
           file cfnb-server
       
-      - name: Create Info.plist and bundle structure
+      - name: Build Swift app binary
         run: |
           cd ${{ github.workspace }}
           
-          # Create app bundle directory
+          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          
+          cat > main.swift << 'SWIFTEOF'
+          import UIKit
+          import WebKit
+          import Foundation
+          
+          class AppDelegate: UIResponder, UIApplicationDelegate, WKNavigationDelegate {
+            var window: UIWindow?
+            var webView: WKWebView?
+            var process: Process?
+            let port: UInt16 = 8080
+          
+            func application(_ application: UIApplication,
+                             didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+              window = UIWindow(frame: UIScreen.main.bounds)
+          
+              let config = WKWebViewConfiguration()
+              webView = WKWebView(frame: UIScreen.main.bounds, configuration: config)
+              webView!.navigationDelegate = self
+          
+              window?.rootViewController = UIViewController()
+              window?.rootViewController?.view = webView
+          
+              startServer()
+          
+              window?.makeKeyAndVisible()
+              return true
+            }
+          
+            func startServer() {
+              process = Process()
+          
+              let exe = Bundle.main.bundlePath + "/cfnb-server"
+              process!.executableURL = URL(fileURLWithPath: exe)
+          
+              var env = ProcessInfo.processInfo.environment
+              env["PORT"] = "\(port)"
+              if let webDir = Bundle.main.path(forResource: "web", ofType: nil) {
+                env["WEB_DIR"] = webDir
+              } else {
+                env["WEB_DIR"] = Bundle.main.bundlePath + "/web"
+              }
+              process!.environment = env
+          
+              do {
+                try process!.run()
+              } catch {
+                print("Failed to start server: \(error)")
+                loadDashboard()
+                return
+              }
+          
+              DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                self?.loadDashboard()
+              }
+            }
+          
+            func loadDashboard() {
+              guard let wv = webView else { return }
+              let url = URL(string: "http://127.0.0.1:\(port)")!
+              wv.load(URLRequest(url: url))
+            }
+          
+            func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+              print("WebView error: \(error)")
+              DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                self?.loadDashboard()
+              }
+            }
+          
+            func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+              print("WebView loaded successfully")
+            }
+          }
+          
+          UIApplicationMain(
+            CommandLine.argc,
+            CommandLine.unsafeArgv,
+            nil,
+            NSStringFromClass(AppDelegate.self)
+          )
+          SWIFTEOF
+          
+          swiftc -sdk "$SDK_PATH" -target arm64-apple-ios12.0 \
+            -O -whole-module-optimization \
+            -framework UIKit -framework WebKit -framework Foundation \
+            -parse-as-library \
+            main.swift -o CFNB
+          
+          file CFNB
+          echo "Swift app binary compiled successfully"
+      
+      - name: Create app bundle and IPA
+        run: |
+          cd ${{ github.workspace }}
+          
           mkdir -p Payload/CFNB.app
           
-          # Copy Go binaries
+          cp CFNB Payload/CFNB.app/CFNB
           cp cfnb-go/cfnb-server Payload/CFNB.app/cfnb-server
-          chmod +x Payload/CFNB.app/cfnb-server
+          chmod +x Payload/CFNB.app/CFNB Payload/CFNB.app/cfnb-server
           
-          # Create Info.plist for the bundle
+          cp -r cfnb-go/web Payload/CFNB.app/web
+          
           cat > Payload/CFNB.app/Info.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -67,15 +163,13 @@ jobs:
               <key>CFBundleShortVersionString</key>
               <string>1.0</string>
               <key>CFBundleExecutable</key>
-              <string>cfnb-server</string>
+              <string>CFNB</string>
               <key>CFBundleInfoDictionaryVersion</key>
               <string>6.0</string>
               <key>CFBundlePackageType</key>
               <string>APPL</string>
               <key>MinimumOSVersion</key>
               <string>12.0</string>
-              <key>NSExtensionPointIdentifier</key>
-              <string>com.apple.UIKit.app</string>
               <key>NSAppTransportSecurity</key>
               <dict>
                   <key>NSAllowsArbitraryLoads</key>
@@ -85,27 +179,15 @@ jobs:
           </plist>
           EOF
           
-          # Copy web assets
-          if [ -d "cfnb-go/web" ]; then
-            cp -r cfnb-go/web Payload/CFNB.app/web
-          fi
-          
-          echo "Payload structure:"
+          echo "Bundle structure:"
           find Payload -type f | sort
-      
-      - name: Package IPA (no Xcode needed)
-        run: |
-          cd ${{ github.workspace }}
           
           mkdir -p build
-          
-          # IPA is just a zip of Payload/
           cd build
           zip -r CFNB.ipa ../Payload/
           cd ..
           
           ls -lh build/CFNB.ipa
-          echo "IPA ready!"
       
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
