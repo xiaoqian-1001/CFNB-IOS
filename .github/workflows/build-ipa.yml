@@ -120,6 +120,7 @@ jobs:
           cp CFNB Payload/CFNB.app/CFNB
           chmod +x Payload/CFNB.app/CFNB
           cp -r cfnb-go/web Payload/CFNB.app/web
+          cp cfnb-go/config.json Payload/CFNB.app/config.json
           
           cat > Payload/CFNB.app/Info.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
