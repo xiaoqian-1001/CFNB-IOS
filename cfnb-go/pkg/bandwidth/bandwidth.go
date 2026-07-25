@@ -1,11 +1,12 @@
 package bandwidth
 
 import (
+	"context"
 	"fmt"
-	"os/exec"
-	"runtime"
+	"io"
+	"net"
+	"net/http"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,79 +23,79 @@ func Measure(nodeStr string, bwURL string, connectTimeout, timeout, processBuffe
 		return Result{Node: nodeStr}
 	}
 
-	nullDevice := "/dev/null"
-	if runtime.GOOS == "windows" {
-		nullDevice = "NUL"
-	}
-
 	expectedSize := expectedSizeMB * 1024 * 1024
 
-	args := []string{
-		"-s", "-o", nullDevice,
-		"-w", "%{size_download} %{time_starttransfer} %{time_total}",
-		"-L",
-		"-H", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-		"--http2",
-		"--noproxy", "*",
-		"--resolve", fmt.Sprintf("speed.cloudflare.com:%s:%s", port, ip),
-		"--connect-timeout", fmt.Sprintf("%.0f", connectTimeout),
-		"--max-time", fmt.Sprintf("%.0f", timeout),
-		"--insecure",
-		bwURL,
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			dialer := &net.Dialer{
+				Timeout:   time.Duration(connectTimeout * float64(time.Second)),
+				KeepAlive: -1,
+			}
+			return dialer.DialContext(ctx, "tcp", ip+":"+port)
+		},
+		DisableKeepAlives: true,
 	}
 
-	cmd := exec.Command("curl", args...)
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   time.Duration((timeout + processBuffer) * float64(time.Second)),
+	}
+
+	req, err := http.NewRequest("GET", bwURL, nil)
+	if err != nil {
+		return Result{Node: nodeStr}
+	}
+	req.Host = "speed.cloudflare.com"
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "*/*")
+
 	totalTimeout := time.Duration((timeout + processBuffer) * float64(time.Second))
 
-	done := make(chan struct {
-		stdout string
-		err    error
-	}, 1)
+	done := make(chan Result, 1)
 
 	go func() {
-		out, err := cmd.Output()
-		done <- struct {
-			stdout string
-			err    error
-		}{string(out), err}
+		start := time.Now()
+		resp, err := client.Do(req)
+		if err != nil {
+			done <- Result{Node: nodeStr}
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			done <- Result{Node: nodeStr}
+			return
+		}
+
+		timeStartTransfer := time.Since(start).Seconds()
+
+		n, err := io.Copy(io.Discard, resp.Body)
+		if err != nil {
+			done <- Result{Node: nodeStr}
+			return
+		}
+		timeTotal := time.Since(start).Seconds()
+
+		if n < int64(expectedSize) {
+			done <- Result{Node: nodeStr}
+			return
+		}
+
+		transferTime := timeTotal - timeStartTransfer
+		if transferTime <= 0 {
+			done <- Result{Node: nodeStr}
+			return
+		}
+		speedMbps := (float64(n) * 8) / (transferTime * 1000 * 1000)
+		done <- Result{Node: nodeStr, Speed: speedMbps}
 	}()
 
 	select {
 	case <-time.After(totalTimeout):
-		if cmd.Process != nil {
-			cmd.Process.Kill()
-		}
+		transport.CloseIdleConnections()
 		return Result{Node: nodeStr}
 	case result := <-done:
-		if result.err != nil {
-			return Result{Node: nodeStr}
-		}
-		stdout := strings.TrimSpace(result.stdout)
-		if stdout == "" {
-			return Result{Node: nodeStr}
-		}
-		parts := strings.Fields(stdout)
-		if len(parts) < 3 {
-			return Result{Node: nodeStr}
-		}
-		sizeBytes, err := strconv.ParseFloat(parts[0], 64)
-		if err != nil || sizeBytes < expectedSize {
-			return Result{Node: nodeStr}
-		}
-		timeStartTransfer, err := strconv.ParseFloat(parts[1], 64)
-		if err != nil {
-			return Result{Node: nodeStr}
-		}
-		timeTotal, err := strconv.ParseFloat(parts[2], 64)
-		if err != nil {
-			return Result{Node: nodeStr}
-		}
-		transferTime := timeTotal - timeStartTransfer
-		if transferTime <= 0 {
-			return Result{Node: nodeStr}
-		}
-		speedMbps := (sizeBytes * 8) / (transferTime * 1000 * 1000)
-		return Result{Node: nodeStr, Speed: speedMbps}
+		return result
 	}
 }
 
@@ -111,11 +112,6 @@ func extractIPPort(node string) (string, string) {
 
 func Filter(candidates []string, bwURL string, connectTimeout, timeout, processBuffer, expectedSizeMB float64, workers int, progressInterval int) []Result {
 	if len(candidates) == 0 {
-		return nil
-	}
-
-	if _, err := exec.LookPath("curl"); err != nil {
-		fmt.Println("未检测到 curl 命令，带宽测速将跳过。")
 		return nil
 	}
 
