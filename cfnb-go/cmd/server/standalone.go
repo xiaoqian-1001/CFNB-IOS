@@ -1,4 +1,4 @@
-//go:build !carchive
+//go:build !cfios
 
 package main
 

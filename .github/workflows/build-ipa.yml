@@ -37,7 +37,7 @@ jobs:
           # Build c-archive (static library) for in-process linking
           CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
             CC="$CC" CXX="$CXX" CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" \
-            go build -buildmode=c-archive -o ../libcfnb.a ./cmd/server/ 2>&1 || true
+            go build -tags cfios -buildmode=c-archive -o ../libcfnb.a ./cmd/server/ 2>&1 || true
           
           # Also build standalone binary for fallback
           CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
