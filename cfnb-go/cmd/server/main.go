@@ -251,14 +251,26 @@ func runPipeline(rc RunConfig) {
 		cfg.UseGlobalMode = true
 	}
 
-	pr, pw := io.Pipe()
-	defer pw.Close()
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		addLog("错误: 无法创建管道: " + err.Error())
+		return
+	}
 	defer pr.Close()
+
+	oldStdout := os.Stdout
+	os.Stdout = pw
+
+	restoreStdout := func() {
+		pw.Close()
+		os.Stdout = oldStdout
+	}
 
 	outBuf := &bytes.Buffer{}
 	done := make(chan error, 1)
 
 	go func() {
+		defer restoreStdout()
 		_, err := pipeline.Run(cfg, io.MultiWriter(pw, outBuf))
 		pw.Close()
 		done <- err
