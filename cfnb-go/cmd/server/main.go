@@ -185,10 +185,11 @@ func handleEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 type RunConfig struct {
-	BandwidthSize float64 `json:"bandwidthSize"`
-	Candidates    int     `json:"candidates"`
-	Mode          string  `json:"mode"`
-	TCPProbes     int     `json:"tcpProbes"`
+	BandwidthSize    float64 `json:"bandwidthSize"`
+	Candidates       int     `json:"candidates"`
+	Mode             string  `json:"mode"`
+	TCPProbes        int     `json:"tcpProbes"`
+	BandwidthWorkers int     `json:"bandwidthWorkers"`
 }
 
 func handleRun(w http.ResponseWriter, r *http.Request) {
@@ -244,6 +245,9 @@ func runPipeline(rc RunConfig) {
 	}
 	if rc.TCPProbes > 0 {
 		cfg.TCPProbes = rc.TCPProbes
+	}
+	if rc.BandwidthWorkers > 0 {
+		cfg.BandwidthWorkers = rc.BandwidthWorkers
 	}
 	if rc.Mode == "percountry" {
 		cfg.UseGlobalMode = false

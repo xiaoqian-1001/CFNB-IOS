@@ -113,6 +113,8 @@ tr:hover td { background: #1c2128; }
       </select>
       <label>TCP探测</label>
       <input type="number" id="cfgTCPProbes" value="1" min="1" max="10" onchange="saveConfig()">
+      <label>测速并发</label>
+      <input type="number" id="cfgBWWorkers" value="3" min="1" max="50" onchange="saveConfig()">
     </div>
   </div>
 
@@ -202,7 +204,8 @@ function saveConfig() {
     bandwidthSize: parseFloat(document.getElementById('cfgBandwidthSize').value),
     candidates: parseInt(document.getElementById('cfgCandidates').value) || 150,
     mode: document.getElementById('cfgMode').value,
-    tcpProbes: parseInt(document.getElementById('cfgTCPProbes').value) || 1
+    tcpProbes: parseInt(document.getElementById('cfgTCPProbes').value) || 1,
+    bandwidthWorkers: parseInt(document.getElementById('cfgBWWorkers').value) || 3
   };
   localStorage.setItem('cfnbConfig', JSON.stringify(cfg));
 }
@@ -215,6 +218,7 @@ function loadConfig() {
       document.getElementById('cfgCandidates').value = saved.candidates || 150;
       document.getElementById('cfgMode').value = saved.mode || 'global';
       document.getElementById('cfgTCPProbes').value = saved.tcpProbes || 1;
+      document.getElementById('cfgBWWorkers').value = saved.bandwidthWorkers || 3;
     }
   } catch(e) {}
 }
@@ -225,7 +229,8 @@ function startPipeline() {
     bandwidthSize: parseFloat(document.getElementById('cfgBandwidthSize').value),
     candidates: parseInt(document.getElementById('cfgCandidates').value) || 150,
     mode: document.getElementById('cfgMode').value,
-    tcpProbes: parseInt(document.getElementById('cfgTCPProbes').value) || 1
+    tcpProbes: parseInt(document.getElementById('cfgTCPProbes').value) || 1,
+    bandwidthWorkers: parseInt(document.getElementById('cfgBWWorkers').value) || 3
   };
   fetch('/api/run', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(cfg) })
     .then(r => r.json())
