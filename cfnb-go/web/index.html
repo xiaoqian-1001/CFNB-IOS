@@ -303,7 +303,10 @@ tr:last-child td { border-bottom: none; }
   </div>
 
   <div class="config-section">
-    <div class="config-title">参数配置</div>
+    <div class="config-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>参数配置</span>
+      <button onclick="resetConfig()" style="padding:3px 10px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);font-size:11px;cursor:pointer">重置</button>
+    </div>
     <div class="config-grid">
       <div class="config-item">
         <label>测速文件</label>
@@ -546,6 +549,33 @@ function importFile() {
 
 function clearDirectIPs() {
   document.getElementById('cfgDirectIPs').value = '';
+  saveConfig();
+}
+
+function resetConfig() {
+  document.getElementById('cfgBandwidthSize').value = '1';
+  document.getElementById('cfgCandidates').value = '150';
+  document.getElementById('cfgMode').value = 'global';
+  document.getElementById('cfgGlobalTopN').value = '15';
+  document.getElementById('cfgPerCountryTopN').value = '1';
+  document.getElementById('cfgTCPProbes').value = '1';
+  document.getElementById('cfgTCPWorkers').value = '300';
+  document.getElementById('cfgTCPTimeout').value = '2';
+  document.getElementById('cfgMinSuccessRate').value = '1.0';
+  document.getElementById('cfgBWWorkers').value = '3';
+  document.getElementById('cfgBandwidthTimeout').value = '3';
+  document.getElementById('cfgAvailability').checked = true;
+  document.getElementById('cfgHTTPTest').checked = true;
+  document.getElementById('cfgSources').value = 'https://zip.cm.edu.kg/all.txt';
+  document.getElementById('cfgUseURLSource').checked = true;
+  document.getElementById('cfgDirectIPs').value = '';
+  document.getElementById('cfgPreFilterPort').checked = true;
+  document.getElementById('cfgPreFilterBlocked').checked = true;
+  document.getElementById('cfgPreFilterPorts').value = '443';
+  document.getElementById('cfgPreFilterBlockedCountries').value = 'CN';
+  togglePreFilterPort();
+  togglePreFilterBlocked();
+  toggleDataSource();
   saveConfig();
 }
 
