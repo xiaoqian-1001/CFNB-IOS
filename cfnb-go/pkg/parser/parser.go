@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -215,6 +216,7 @@ func ParseAdaptiveWithFallback(text string, availabilityAPI string, connectTimeo
 	}
 
 	fmt.Printf("%d 个节点未能识别或缺少国家，通过可用性检测 API 查询国家...\n", len(pending))
+	os.Stdout.Sync()
 	resolved := ResolveCountriesBatch(pending, availabilityAPI, connectTimeout, readTimeout, workers, 1)
 	for ipport, code := range resolved {
 		if code != "" {
@@ -246,7 +248,9 @@ func FetchSourceWithFallback(urlStr string, maxRetries int, retryDelay float64, 
 	}
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		fmt.Printf("正在请求数据源 %s (尝试 %d/%d) ...\n", urlStr, attempt, maxRetries)
+		msg := fmt.Sprintf("正在请求数据源 %s (尝试 %d/%d) ...", urlStr, attempt, maxRetries)
+		fmt.Println(msg)
+		os.Stdout.Sync()
 
 		req, err := http.NewRequest("GET", urlStr, nil)
 		if err != nil {
@@ -255,9 +259,13 @@ func FetchSourceWithFallback(urlStr string, maxRetries int, retryDelay float64, 
 
 		resp, err := client.Do(req)
 		if err != nil {
-			fmt.Printf("请求失败 (%s): %v\n", urlStr, err)
+			msg := fmt.Sprintf("请求失败 (%s): %v", urlStr, err)
+			fmt.Println(msg)
+			os.Stdout.Sync()
 			if attempt < maxRetries {
-				fmt.Printf("等待 %.0f 秒后重试...\n", retryDelay)
+				retryMsg := fmt.Sprintf("等待 %.0f 秒后重试...", retryDelay)
+				fmt.Println(retryMsg)
+				os.Stdout.Sync()
 				time.Sleep(time.Duration(retryDelay * float64(time.Second)))
 			}
 			continue
@@ -266,7 +274,9 @@ func FetchSourceWithFallback(urlStr string, maxRetries int, retryDelay float64, 
 		body, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			fmt.Printf("读取响应失败 (%s): %v\n", urlStr, err)
+			readErrMsg := fmt.Sprintf("读取响应失败 (%s): %v", urlStr, err)
+			fmt.Println(readErrMsg)
+			os.Stdout.Sync()
 			if attempt < maxRetries {
 				time.Sleep(time.Duration(retryDelay * float64(time.Second)))
 			}
@@ -280,6 +290,7 @@ func FetchSourceWithFallback(urlStr string, maxRetries int, retryDelay float64, 
 			nodes = ParseAdaptive(string(body))
 		}
 		fmt.Printf("从 %s 解析出 %d 个节点。\n", urlStr, len(nodes))
+		os.Stdout.Sync()
 		return nodes, nil
 	}
 
@@ -369,7 +380,9 @@ func ResolveCountriesBatch(ipports []string, apiURL string, connectTimeout, read
 
 		now := time.Now()
 		if now.Sub(lastPrint) >= time.Duration(progressInterval)*time.Second || completed == total {
-			fmt.Printf("\n[备用API查询] 进度：%d/%d (%.1f%%)\n", completed, total, float64(completed)/float64(total)*100)
+			msg := fmt.Sprintf("[备用API查询] 进度：%d/%d (%.1f%%)", completed, total, float64(completed)/float64(total)*100)
+			fmt.Println(msg)
+			os.Stdout.Sync()
 			lastPrint = now
 		}
 	}
@@ -396,6 +409,7 @@ func ParseWithFallback(text string, availabilityAPI string, connectTimeout, read
 	}
 
 	fmt.Printf("%d 个节点未能识别或缺少国家，通过可用性检测 API 查询国家...\n", len(pending))
+	os.Stdout.Sync()
 	resolved := ResolveCountriesBatch(pending, availabilityAPI, connectTimeout, readTimeout, workers, 1)
 	for ipport, code := range resolved {
 		if code != "" {

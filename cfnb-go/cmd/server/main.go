@@ -450,6 +450,8 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 
 func updateProgressFromLog(line string) {
 	switch {
+	case strings.Contains(line, "备用API查询"):
+		updateProgress("Phase 2/6: Querying backup API...")
 	case strings.Contains(line, "正在请求数据源"):
 		updateProgress("Phase 2/6: Fetching data sources...")
 	case strings.Contains(line, "合并后总计"):
