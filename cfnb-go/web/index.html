@@ -471,17 +471,13 @@ function loadConfig() {
       if (saved.testAvailability !== undefined) document.getElementById('cfgAvailability').checked = saved.testAvailability;
       if (saved.httpTestEnabled !== undefined) document.getElementById('cfgHTTPTest').checked = saved.httpTestEnabled;
       if (saved.sourceURLs && Array.isArray(saved.sourceURLs) && saved.sourceURLs.length > 0) document.getElementById('cfgSources').value = saved.sourceURLs.join('\n');
-      if (saved.preFilterPortEnabled !== undefined) {
-        document.getElementById('cfgPreFilterPort').checked = saved.preFilterPortEnabled;
-        document.getElementById('preFilterPortRow').style.display = saved.preFilterPortEnabled ? 'block' : 'none';
-      }
+      document.getElementById('cfgPreFilterPort').checked = saved.preFilterPortEnabled !== undefined ? saved.preFilterPortEnabled : true;
+      document.getElementById('preFilterPortRow').style.display = document.getElementById('cfgPreFilterPort').checked ? 'block' : 'none';
       if (saved.preFilterPorts && Array.isArray(saved.preFilterPorts) && saved.preFilterPorts.length > 0) {
         document.getElementById('cfgPreFilterPorts').value = saved.preFilterPorts.join(',');
       }
-      if (saved.preFilterBlockedEnabled !== undefined) {
-        document.getElementById('cfgPreFilterBlocked').checked = saved.preFilterBlockedEnabled;
-        document.getElementById('preFilterBlockedRow').style.display = saved.preFilterBlockedEnabled ? 'block' : 'none';
-      }
+      document.getElementById('cfgPreFilterBlocked').checked = saved.preFilterBlockedEnabled !== undefined ? saved.preFilterBlockedEnabled : true;
+      document.getElementById('preFilterBlockedRow').style.display = document.getElementById('cfgPreFilterBlocked').checked ? 'block' : 'none';
       if (saved.preFilterBlockedCountries && Array.isArray(saved.preFilterBlockedCountries) && saved.preFilterBlockedCountries.length > 0) {
         document.getElementById('cfgPreFilterBlockedCountries').value = saved.preFilterBlockedCountries.join(',');
       }
