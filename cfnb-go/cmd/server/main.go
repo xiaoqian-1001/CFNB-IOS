@@ -240,8 +240,8 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	addLog(fmt.Sprintf("接收到配置: 前置端口过滤=%v, 端口=%v, 前置黑名单过滤=%v, 黑名单国家=%v",
-		rc.PreFilterPortEnabled, rc.PreFilterPorts, rc.PreFilterBlockedEnabled, rc.PreFilterBlockedCountries))
+	addLog(fmt.Sprintf("接收到配置: 前置端口过滤=%v(%t), 端口=%v, 前置黑名单过滤=%v(%t), 黑名单国家=%v",
+		rc.PreFilterPortEnabled, boolPtrVal(rc.PreFilterPortEnabled), rc.PreFilterPorts, rc.PreFilterBlockedEnabled, boolPtrVal(rc.PreFilterBlockedEnabled), rc.PreFilterBlockedCountries))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancelPipeline = cancel
@@ -621,6 +621,13 @@ func countryName(code string) string {
 		return name
 	}
 	return code
+}
+
+func boolPtrVal(b *bool) bool {
+	if b == nil {
+		return false
+	}
+	return *b
 }
 
 
