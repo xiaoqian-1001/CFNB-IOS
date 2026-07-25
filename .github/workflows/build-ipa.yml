@@ -108,6 +108,7 @@ jobs:
 
           clang -arch arm64 -isysroot "$SDK_PATH" -miphoneos-version-min=12.0 \
             -framework UIKit -framework WebKit -framework Foundation \
+            -framework CoreFoundation -framework Security \
             -fobjc-arc -I. -o CFNB main.m libcfnb.a
 
           echo "App binary: $(ls -lh CFNB)"
