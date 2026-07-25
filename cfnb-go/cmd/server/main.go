@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"embed"
@@ -15,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"cfnb/pkg/config"
@@ -376,9 +376,6 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 	outBuf := &bytes.Buffer{}
 	done := make(chan error, 1)
 
-	// Use io.Pipe for the scanner to avoid OS pipe buffering
-	ioR, ioW := io.Pipe()
-
 	var result *pipeline.Result
 	go func() {
 		defer restoreStdout()
@@ -388,16 +385,6 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 		done <- err
 	}()
 
-	// Bridge os.Pipe -> io.Pipe for real-time line reading
-	go func() {
-		_, err := io.Copy(ioW, pr)
-		if err != nil {
-			ioW.CloseWithError(err)
-		} else {
-			ioW.Close()
-		}
-	}()
-
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -405,17 +392,30 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 	scannerDone := make(chan struct{}, 1)
 
 	go func() {
-		reader := bufio.NewReaderSize(ioR, 256)
+		fd := int(pr.Fd())
+		buf := make([]byte, 4096)
+		var leftover []byte
 		for {
-			line, err := reader.ReadString('\n')
+			n, err := syscall.Read(fd, buf)
 			if err != nil {
 				break
 			}
-			line = strings.TrimRight(line, "\n\r")
-			if line != "" {
-				addLog(line)
-				updateProgressFromLog(line)
+			data := append(leftover, buf[:n]...)
+			for {
+				idx := bytes.IndexByte(data, '\n')
+				if idx < 0 {
+					leftover = data
+					break
+				}
+				line := string(data[:idx])
+				data = data[idx+1:]
+				line = strings.TrimRight(line, "\r")
+				if line != "" {
+					addLog(line)
+					updateProgressFromLog(line)
+				}
 			}
+			leftover = data
 		}
 		scannerDone <- struct{}{}
 	}()
