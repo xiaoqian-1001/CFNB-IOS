@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"embed"
 	"encoding/json"
@@ -10,11 +11,13 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"cfnb/pkg/config"
+	"cfnb/pkg/pipeline"
 )
 
 //go:embed web/*
@@ -218,52 +221,72 @@ func runPipeline() {
 	exeDir, _ := os.Executable()
 	workDir := filepath.Dir(exeDir)
 
-	// Try multiple paths to find cfnb binary
-	cfnbPath := filepath.Join(workDir, "cfnb")
-	if _, err := os.Stat(cfnbPath); os.IsNotExist(err) {
-		cfnbPath = "cfnb"
+	cfgPath := filepath.Join(workDir, "config.json")
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		// Try current directory
+		cfg, err = config.Load("config.json")
+		if err != nil {
+			addLog("ERROR: Cannot load config: " + err.Error())
+			return
+		}
 	}
 
-	stdoutBuf := &bytes.Buffer{}
-	stderrBuf := &bytes.Buffer{}
-	bufMu := &sync.Mutex{}
+	os.Chdir(workDir)
 
-	cmd := exec.Command(cfnbPath)
-	cmd.Dir = workDir
-	cmd.Stdout = io.MultiWriter(os.Stdout, &lockedWriter{buf: stdoutBuf, mu: bufMu})
-	cmd.Stderr = io.MultiWriter(os.Stderr, &lockedWriter{buf: stderrBuf, mu: bufMu})
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	defer pr.Close()
 
+	outBuf := &bytes.Buffer{}
 	done := make(chan error, 1)
+
 	go func() {
-		done <- cmd.Run()
+		_, err := pipeline.Run(cfg, io.MultiWriter(pw, outBuf))
+		pw.Close()
+		done <- err
 	}()
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	var lastOutput string
+	scannerDone := make(chan struct{}, 1)
+
+	go func() {
+		scanner := bufio.NewScanner(pr)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if line != "" {
+				addLog(line)
+				updateProgressFromLog(line)
+			}
+		}
+		scannerDone <- struct{}{}
+	}()
+
 	for {
 		select {
 		case <-ticker.C:
-			bufMu.Lock()
-			output := stdoutBuf.String()
-			bufMu.Unlock()
+			output := outBuf.String()
 			if output != lastOutput {
-				lastOutput = processOutput(output, lastOutput)
+				lastOutput = output
 			}
+		case <-scannerDone:
+			output := outBuf.String()
+			if output != lastOutput {
+				lastOutput = output
+			}
+			addLog("================================")
+			addLog("Pipeline completed successfully!")
+			loadResults()
+			return
 		case err := <-done:
-			bufMu.Lock()
-			output := stdoutBuf.String()
-			bufMu.Unlock()
-			processOutput(output, lastOutput)
-
+			output := outBuf.String()
+			if output != lastOutput {
+				lastOutput = output
+			}
 			if err != nil {
-				bufMu.Lock()
-				stderr := stderrBuf.String()
-				bufMu.Unlock()
-				if stderr != "" {
-					addLog("ERROR: " + stderr)
-				}
 				addLog("Pipeline completed with errors: " + err.Error())
 			} else {
 				addLog("================================")
@@ -273,29 +296,6 @@ func runPipeline() {
 			return
 		}
 	}
-}
-
-type lockedWriter struct {
-	buf *bytes.Buffer
-	mu  *sync.Mutex
-}
-
-func (w *lockedWriter) Write(p []byte) (n int, err error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.buf.Write(p)
-}
-
-func processOutput(output, lastOutput string) string {
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line != "" && !strings.Contains(lastOutput, line) {
-			addLog(line)
-			updateProgressFromLog(line)
-		}
-	}
-	return output
 }
 
 func updateProgressFromLog(line string) {
