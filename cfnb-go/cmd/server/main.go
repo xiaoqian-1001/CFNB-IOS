@@ -44,29 +44,63 @@ var (
 )
 
 func main() {
-	http.HandleFunc("/", serveIndex)
-	http.HandleFunc("/api/run", handleRun)
-	http.HandleFunc("/api/events", handleEvents)
-	http.HandleFunc("/api/status", handleStatus)
+	http.HandleFunc("/", middlewareCORS(serveIndex))
+	http.HandleFunc("/api/run", middlewareCORS(handleRun))
+	http.HandleFunc("/api/events", middlewareCORS(handleEvents))
+	http.HandleFunc("/api/status", middlewareCORS(handleStatus))
 
 	port := "8080"
 	if p := os.Getenv("PORT"); p != "" {
 		port = p
 	}
 
-	fmt.Printf("CFNB Web Dashboard starting on port %s\n", port)
+	fmt.Printf("CFNB Web Dashboard starting on :%s\n", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
+func middlewareCORS(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next(w, r)
+	}
+}
+
+func init() { log.SetFlags(0) }
+
 func serveIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
 	}
-	http.ServeFile(w, r, "web/index.html")
+
+	// Try WEB_DIR env var first (for iOS bundling)
+	if webDir := os.Getenv("WEB_DIR"); webDir != "" {
+		webPath := filepath.Join(webDir, "index.html")
+		if _, err := os.Stat(webPath); err == nil {
+			http.ServeFile(w, r, webPath)
+			return
+		}
+	}
+
+	exePath, _ := os.Executable()
+	workDir := filepath.Dir(exePath)
+	webPath := filepath.Join(workDir, "web", "index.html")
+
+	if _, err := os.Stat(webPath); os.IsNotExist(err) {
+		// Fallback: look for web/ relative to current directory
+		webPath = "web/index.html"
+	}
+
+	http.ServeFile(w, r, webPath)
 }
 
 func handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -159,11 +193,17 @@ func runPipeline() {
 	exeDir, _ := os.Executable()
 	workDir := filepath.Dir(exeDir)
 
+	// Try multiple paths to find cfnb binary
+	cfnbPath := filepath.Join(workDir, "cfnb")
+	if _, err := os.Stat(cfnbPath); os.IsNotExist(err) {
+		cfnbPath = "cfnb"
+	}
+
 	stdoutBuf := &bytes.Buffer{}
 	stderrBuf := &bytes.Buffer{}
 	bufMu := &sync.Mutex{}
 
-	cmd := exec.Command(filepath.Join(workDir, "cfnb"))
+	cmd := exec.Command(cfnbPath)
 	cmd.Dir = workDir
 	cmd.Stdout = io.MultiWriter(os.Stdout, &lockedWriter{buf: stdoutBuf, mu: bufMu})
 	cmd.Stderr = io.MultiWriter(os.Stderr, &lockedWriter{buf: stderrBuf, mu: bufMu})

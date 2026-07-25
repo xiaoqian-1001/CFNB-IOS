@@ -31,7 +31,17 @@ jobs:
             CFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
             CXXFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
             go build -o cfnb .
+          
+          # Also build the web server
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
+            CC="$(xcrun -sdk iphoneos find clang)" \
+            CXX="$(xcrun -sdk iphoneos find clang++)" \
+            CFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
+            CXXFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=12.0" \
+            go build -o cfnb-server ./cmd/server/
+          
           file cfnb
+          file cfnb-server
       
       - name: Create Xcode project structure
         run: |
@@ -40,7 +50,10 @@ jobs:
           # ─── 1. Create the Xcode project directory ───
           mkdir -p CFNB.xcodeproj/project.xcworkspace
           
-          # ─── 2. Create Info.plist (will be at project root, matching PBXProj path) ───
+          # ─── 2. Copy web assets into the project ───
+          cp -r cfnb-go/web CFNB.app.web
+
+          # ─── 3. Create Info.plist ───
           cat > Info.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -60,42 +73,124 @@ jobs:
               <string>APPL</string>
               <key>MinimumOSVersion</key>
               <string>12.0</string>
+              <key>NSAppTransportSecurity</key>
+              <dict>
+                  <key>NSAllowsArbitraryLoads</key>
+                  <true/>
+              </dict>
           </dict>
           </plist>
           EOF
           
-          # ─── 3. Create main.swift AT PROJECT ROOT (matching PBXProj reference) ───
-          cat > main.swift << 'EOF'
+          # ─── 4. Create main.swift with server startup and WebView ───
+          cat > main.swift << 'SWIFTEOF'
           import UIKit
+          import WebKit
+          import os
+
           @main
-          class AppDelegate: UIResponder, UIApplicationDelegate {
+          class AppDelegate: UIResponder, UIApplicationDelegate, WKNavigationDelegate {
               var window: UIWindow?
+              var process: Process?
+              var port = 8080
+              var webView: WKWebView?
+              let logger = Logger(subsystem: "com.cfnb.app", category: "main")
+
               func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
                   window = UIWindow(frame: UIScreen.main.bounds)
-                  let vc = UIViewController()
-                  vc.view.backgroundColor = .black
-                  let label = UILabel()
-                  label.text = "CFNB - Cloudflare IP Optimizer"
-                  label.textAlignment = .center
-                  label.textColor = .white
-                  label.frame = CGRect(x: 50, y: 200, width: 300, height: 50)
-                  vc.view.addSubview(label)
-                  window?.rootViewController = vc
+                  
+                  // Launch Go backend server
+                  startServer()
+                  
+                  // Create webview
+                  let config = WKWebViewConfiguration()
+                  webView = WKWebView(frame: UIScreen.main.bounds, configuration: config)
+                  webView!.navigationDelegate = self
+                  
+                  // Wait for server to be ready then load URL
+                  DispatchQueue.global().asyncAfter(deadline: .now() + 2) { [weak self] in
+                      self?.loadDashboard()
+                  }
+                  
+                  window?.rootViewController = UIViewController()
+                  if let vc = window?.rootViewController, let wv = webView {
+                      vc.view = wv
+                  }
                   window?.makeKeyAndVisible()
                   return true
               }
+
+              func startServer() {
+                  process = Process()
+                  let exePath = Bundle.main.bundlePath as NSString
+                  
+                  // Find cfnb-server binary
+                  let candidates = [
+                      exePath.appendingPathComponent("cfnb-server"),
+                      exePath.appending("/CFNB.app/cfnb-server"),
+                      exePath.deletingLastPathComponent().appendingPathComponent("cfnb-server")
+                  ]
+                  
+                  var executablePath: String?
+                  for candidate in candidates {
+                      if FileManager.default.fileExists(atPath: candidate) {
+                          executablePath = candidate
+                          break
+                      }
+                  }
+                  
+                  // Also check "web" directory relative to bundle
+                  let webCandidates = [
+                      exePath.appendingPathComponent("CFNB.app.web"),
+                      exePath.appendingPathComponent("web"),
+                      exePath.deletingLastPathComponent().appendingPathComponent("web")
+                  ]
+                  
+                  var webDirPath: String?
+                  for candidate in webCandidates {
+                      if FileManager.default.fileExists(atPath: candidate) {
+                          webDirPath = candidate
+                          break
+                      }
+                  }
+                  
+                  guard let exe = executablePath else {
+                      logger.error("cfnb-server binary not found in bundle")
+                      logger.error("Bundle path: \(exePath)")
+                      logger.error("Files: \(FileManager.default.enumerator(at: URL(fileURLWithPath: exePath as String), includingPropertiesForKeys: nil, options: .skipsSubdirectoryDescendants))?.allObjects ?? []")
+                      return
+                  }
+                  
+                  process!.executableURL = URL(fileURLWithPath: exe)
+                  
+                  var env = ProcessInfo.processInfo.environment
+                  env["PORT"] = String(port)
+                  if let webDir = webDirPath {
+                      env["WEB_DIR"] = webDir
+                  }
+                  process!.environment = env
+                  process!.launch()
+                  
+                  logger.info("Started cfnb-server from: \(exe)")
+              }
+
+              func loadDashboard() {
+                  guard let wv = webView else { return }
+                  let url = URL(string: "http://localhost:\(port)")!
+                  wv.load(URLRequest(url: url))
+                  logger.info("Loading dashboard at \(url.absoluteString)")
+              }
+
+              func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+                  logger.error("WebView load failed: \(error.localizedDescription)")
+              }
           }
-          EOF
-          
-          # ─── 4. Copy Go binary into a Resources-like placeholder directory ───
-          mkdir -p AppResources
-          cp cfnb-go/cfnb AppResources/CFNB
-          chmod +x AppResources/CFNB
+          SWIFTEOF
           
           echo "Files created:"
           ls -la
           echo "---"
-          cat main.swift
+          ls -la CFNB.app.web/ 2>/dev/null || echo "No web dir yet"
       
       - name: Generate project.pbxproj
         run: |
@@ -111,12 +206,15 @@ jobs:
           
           /* Begin PBXBuildFile section */
           		F1000001 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000101; };
+          		F1000002 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = F1000102; };
+          		F1000003 /* CFNB.app.web in Resources */ = {isa = PBXBuildFile; fileRef = F1000104; };
           /* End PBXBuildFile section */
           
           /* Begin PBXFileReference section */
           		F1000101 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
           		F1000102 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
           		F1000103 /* CFNB.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CFNB.app; sourceTree = BUILT_PRODUCTS_DIR; };
+          		F1000104 /* CFNB.app.web */ = {isa = PBXFileReference; lastKnownFileType = folder; path = CFNB.app.web; sourceTree = "<group>"; };
           /* End PBXFileReference section */
           
           /* Begin PBXGroup section */
@@ -132,6 +230,7 @@ jobs:
           			children = (
           				F1000101,
           				F1000102,
+          				F1000104,
           			);
           			path = "";
           			sourceTree = "<group>";
@@ -179,7 +278,7 @@ jobs:
           		F10004R1 /* Resources */ = {
           			isa = PBXResourcesBuildPhase;
           			buildActionMask = 2147483647;
-          			files = ( );
+          			files = ( F1000002, F1000003, );
           			runOnlyForDeploymentPostprocessing = 0;
           		};
           /* End PBXResourcesBuildPhase section */
@@ -268,6 +367,19 @@ jobs:
       - name: Archive
         run: |
           cd ${{ github.workspace }}
+          
+          # Copy Go binaries to the right place for Xcode bundling
+          mkdir -p CFNB.app
+          cp cfnb-go/cfnb CFNB.app/cfnb
+          cp cfnb-go/cfnb-server CFNB.app/cfnb-server
+          chmod +x CFNB.app/cfnb CFNB.app/cfnb-server
+          
+          # Also make web dir accessible
+          if [ ! -d "CFNB.app.web" ]; then
+            echo "ERROR: CFNB.app.web not created by previous step!"
+            exit 1
+          fi
+          
           xcodebuild archive \
             -scheme CFNB \
             -configuration Release \
@@ -290,10 +402,11 @@ jobs:
             exit 1
           fi
           
+          # Find the CFNB.app inside the xcarchive
           APP_PATH="build/CFNB.xcarchive/Products/Applications/CFNB.app"
           if [ ! -d "$APP_PATH" ]; then
             echo "Contents of xcarchive:"
-            find build/CFNB.xcarchive -type f | head -30
+            find build/CFNB.xcarchive -type f 2>/dev/null | head -30
             echo "ERROR: CFNB.app not found in xcarchive!"
             exit 1
           fi
