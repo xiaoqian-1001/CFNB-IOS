@@ -195,17 +195,21 @@ func handleEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 type RunConfig struct {
-	BandwidthSize     float64 `json:"bandwidthSize"`
-	Candidates        int     `json:"candidates"`
-	Mode              string  `json:"mode"`
-	GlobalTopN        int     `json:"globalTopN"`
-	PerCountryTopN    int     `json:"perCountryTopN"`
-	TCPProbes         int     `json:"tcpProbes"`
-	TCPWorkers        int     `json:"tcpWorkers"`
-	BandwidthWorkers  int     `json:"bandwidthWorkers"`
-	TestAvailability  *bool   `json:"testAvailability"`
-	HTTPTestEnabled   *bool   `json:"httpTestEnabled"`
-	SourceURLs        []string `json:"sourceURLs"`
+	BandwidthSize          float64  `json:"bandwidthSize"`
+	Candidates             int      `json:"candidates"`
+	Mode                   string   `json:"mode"`
+	GlobalTopN             int      `json:"globalTopN"`
+	PerCountryTopN         int      `json:"perCountryTopN"`
+	TCPProbes              int      `json:"tcpProbes"`
+	TCPWorkers             int      `json:"tcpWorkers"`
+	BandwidthWorkers       int      `json:"bandwidthWorkers"`
+	TestAvailability       *bool    `json:"testAvailability"`
+	HTTPTestEnabled        *bool    `json:"httpTestEnabled"`
+	SourceURLs             []string `json:"sourceURLs"`
+	PreFilterPortEnabled   *bool    `json:"preFilterPortEnabled"`
+	PreFilterPorts         []int    `json:"preFilterPorts"`
+	PreFilterBlockedEnabled *bool   `json:"preFilterBlockedEnabled"`
+	PreFilterBlockedCountries []string `json:"preFilterBlockedCountries"`
 }
 
 func handleRun(w http.ResponseWriter, r *http.Request) {
@@ -315,6 +319,18 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 		if len(sources) > 0 {
 			cfg.AdditionalSources = sources
 		}
+	}
+	if rc.PreFilterPortEnabled != nil {
+		cfg.PreFilterPortEnabled = *rc.PreFilterPortEnabled
+	}
+	if len(rc.PreFilterPorts) > 0 {
+		cfg.PreFilterPorts = rc.PreFilterPorts
+	}
+	if rc.PreFilterBlockedEnabled != nil {
+		cfg.PreFilterBlockedEnabled = *rc.PreFilterBlockedEnabled
+	}
+	if len(rc.PreFilterBlockedCountries) > 0 {
+		cfg.PreFilterBlockedCountries = rc.PreFilterBlockedCountries
 	}
 
 	pr, pw, err := os.Pipe()

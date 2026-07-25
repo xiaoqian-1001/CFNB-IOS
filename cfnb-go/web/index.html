@@ -346,6 +346,22 @@ tr:last-child td { border-bottom: none; }
           <span>HTTP 检测</span>
           <label class="toggle"><input type="checkbox" id="cfgHTTPTest" checked onchange="saveConfig()"><span class="slider"></span></label>
         </div>
+        <div class="toggle-group">
+          <span>前置端口过滤</span>
+          <label class="toggle"><input type="checkbox" id="cfgPreFilterPort" onchange="togglePreFilterPort()"><span class="slider"></span></label>
+        </div>
+        <div class="toggle-group">
+          <span>前置黑名单过滤</span>
+          <label class="toggle"><input type="checkbox" id="cfgPreFilterBlocked" onchange="togglePreFilterBlocked()"><span class="slider"></span></label>
+        </div>
+      </div>
+      <div id="preFilterPortRow" style="display:none;margin-bottom:8px">
+        <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">过滤端口（逗号分隔，如 443,80,2053）</label>
+        <input type="text" id="cfgPreFilterPorts" value="443" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;transition:border-color .2s" onchange="saveConfig()">
+      </div>
+      <div id="preFilterBlockedRow" style="display:none;margin-bottom:8px">
+        <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">过滤国家代码（逗号分隔，如 CN,US,RU）</label>
+        <input type="text" id="cfgPreFilterBlockedCountries" value="CN" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;transition:border-color .2s" onchange="saveConfig()">
       </div>
       <div>
         <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">数据源 URL（每行一个）</label>
@@ -431,7 +447,11 @@ function saveConfig() {
     bandwidthWorkers: parseInt(document.getElementById('cfgBWWorkers').value) || 3,
     testAvailability: document.getElementById('cfgAvailability').checked,
     httpTestEnabled: document.getElementById('cfgHTTPTest').checked,
-    sourceURLs: document.getElementById('cfgSources').value.split('\n').map(s => s.trim()).filter(s => s)
+    sourceURLs: document.getElementById('cfgSources').value.split('\n').map(s => s.trim()).filter(s => s),
+    preFilterPortEnabled: document.getElementById('cfgPreFilterPort').checked,
+    preFilterPorts: document.getElementById('cfgPreFilterPorts').value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
+    preFilterBlockedEnabled: document.getElementById('cfgPreFilterBlocked').checked,
+    preFilterBlockedCountries: document.getElementById('cfgPreFilterBlockedCountries').value.split(',').map(s => s.trim().toUpperCase()).filter(s => s)
   };
   localStorage.setItem('cfnbConfig', JSON.stringify(cfg));
 }
@@ -451,10 +471,36 @@ function loadConfig() {
       if (saved.testAvailability !== undefined) document.getElementById('cfgAvailability').checked = saved.testAvailability;
       if (saved.httpTestEnabled !== undefined) document.getElementById('cfgHTTPTest').checked = saved.httpTestEnabled;
       if (saved.sourceURLs && Array.isArray(saved.sourceURLs) && saved.sourceURLs.length > 0) document.getElementById('cfgSources').value = saved.sourceURLs.join('\n');
+      if (saved.preFilterPortEnabled !== undefined) {
+        document.getElementById('cfgPreFilterPort').checked = saved.preFilterPortEnabled;
+        document.getElementById('preFilterPortRow').style.display = saved.preFilterPortEnabled ? 'block' : 'none';
+      }
+      if (saved.preFilterPorts && Array.isArray(saved.preFilterPorts) && saved.preFilterPorts.length > 0) {
+        document.getElementById('cfgPreFilterPorts').value = saved.preFilterPorts.join(',');
+      }
+      if (saved.preFilterBlockedEnabled !== undefined) {
+        document.getElementById('cfgPreFilterBlocked').checked = saved.preFilterBlockedEnabled;
+        document.getElementById('preFilterBlockedRow').style.display = saved.preFilterBlockedEnabled ? 'block' : 'none';
+      }
+      if (saved.preFilterBlockedCountries && Array.isArray(saved.preFilterBlockedCountries) && saved.preFilterBlockedCountries.length > 0) {
+        document.getElementById('cfgPreFilterBlockedCountries').value = saved.preFilterBlockedCountries.join(',');
+      }
     }
   } catch(e) {}
 }
 loadConfig();
+
+function togglePreFilterPort() {
+  const show = document.getElementById('cfgPreFilterPort').checked;
+  document.getElementById('preFilterPortRow').style.display = show ? 'block' : 'none';
+  saveConfig();
+}
+
+function togglePreFilterBlocked() {
+  const show = document.getElementById('cfgPreFilterBlocked').checked;
+  document.getElementById('preFilterBlockedRow').style.display = show ? 'block' : 'none';
+  saveConfig();
+}
 
 function startPipeline() {
   const cfg = {
@@ -468,7 +514,11 @@ function startPipeline() {
     bandwidthWorkers: parseInt(document.getElementById('cfgBWWorkers').value) || 3,
     testAvailability: document.getElementById('cfgAvailability').checked,
     httpTestEnabled: document.getElementById('cfgHTTPTest').checked,
-    sourceURLs: document.getElementById('cfgSources').value.split('\n').map(s => s.trim()).filter(s => s)
+    sourceURLs: document.getElementById('cfgSources').value.split('\n').map(s => s.trim()).filter(s => s),
+    preFilterPortEnabled: document.getElementById('cfgPreFilterPort').checked,
+    preFilterPorts: document.getElementById('cfgPreFilterPorts').value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
+    preFilterBlockedEnabled: document.getElementById('cfgPreFilterBlocked').checked,
+    preFilterBlockedCountries: document.getElementById('cfgPreFilterBlockedCountries').value.split(',').map(s => s.trim().toUpperCase()).filter(s => s)
   };
   fetch('/api/run', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(cfg) })
     .then(r => r.json())
