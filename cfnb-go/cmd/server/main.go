@@ -322,55 +322,67 @@ func handleStop(w http.ResponseWriter, r *http.Request) {
 func handleLocalIP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	publicIP := ""
-	resp, err := http.Get("https://api.ipify.org?format=text")
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	var publicIP, isp, city, regionName, country string
+
+	// Primary: ip-api.com returns IP + ISP + Location in one call (HTTP, no TLS issues on iOS)
+	resp, err := client.Get("http://ip-api.com/json/?fields=ip,isp,city,regionName,country")
 	if err == nil {
 		defer resp.Body.Close()
-		data, _ := io.ReadAll(resp.Body)
-		publicIP = strings.TrimSpace(string(data))
+		type ipapi struct {
+			Query      string `json:"query"`
+			ISP        string `json:"isp"`
+			City       string `json:"city"`
+			RegionName string `json:"regionName"`
+			Country    string `json:"country"`
+		}
+		var data ipapi
+		if json.NewDecoder(resp.Body).Decode(&data) == nil {
+			publicIP = data.Query
+			isp = data.ISP
+			city = data.City
+			regionName = data.RegionName
+			country = data.Country
+		}
 	}
+
+	// Fallback: ipify for public IP if ip-api failed
+	if publicIP == "" {
+		resp, err := client.Get("https://api.ipify.org?format=text")
+		if err == nil {
+			defer resp.Body.Close()
+			data, _ := io.ReadAll(resp.Body)
+			publicIP = strings.TrimSpace(string(data))
+		}
+	}
+	if publicIP == "" {
+		publicIP = "unknown"
+	}
+
+	locationParts := []string{}
+	if city != "" {
+		locationParts = append(locationParts, city)
+	}
+	if regionName != "" {
+		locationParts = append(locationParts, regionName)
+	}
+	if country != "" {
+		locationParts = append(locationParts, country)
+	}
+	location := strings.Join(locationParts, " | ")
 
 	var localIPs []string
 	addrs, err := net.InterfaceAddrs()
 	if err == nil {
 		for _, addr := range addrs {
-			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
+			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
 				localIPs = append(localIPs, ipnet.IP.String())
 			}
 		}
 	}
 	if localIPs == nil {
 		localIPs = []string{}
-	}
-
-	isp := ""
-	location := ""
-	if publicIP != "" {
-		geoResp, err := http.Get("http://ip-api.com/json/" + publicIP + "?fields=isp,city,regionName,country")
-		if err == nil {
-			defer geoResp.Body.Close()
-			geoData, _ := io.ReadAll(geoResp.Body)
-			var geo struct {
-				ISP         string `json:"isp"`
-				City        string `json:"city"`
-				RegionName  string `json:"regionName"`
-				Country     string `json:"country"`
-			}
-			if json.Unmarshal(geoData, &geo) == nil {
-				isp = geo.ISP
-				parts := []string{}
-				if geo.City != "" {
-					parts = append(parts, geo.City)
-				}
-				if geo.RegionName != "" {
-					parts = append(parts, geo.RegionName)
-				}
-				if geo.Country != "" {
-					parts = append(parts, geo.Country)
-				}
-				location = strings.Join(parts, " | ")
-			}
-		}
 	}
 
 	result := map[string]interface{}{
