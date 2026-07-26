@@ -48,7 +48,7 @@ jobs:
             exit 1
           fi
           
-          cat > main.m << 'OBJCEOF'
+          cat > main.mm << 'OBJCEOF'
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
           #include "libcfnb.h"
@@ -144,7 +144,7 @@ jobs:
           clang -arch arm64 -isysroot "$SDK_PATH" -miphoneos-version-min=16.0 \
             -framework UIKit -framework WebKit -framework Foundation \
             -framework CoreFoundation -framework Security -framework CFNetwork \
-            -fobjc-arc -I. -o CFNB main.m libcfnb.a
+            -fobjc-arc -I. -o CFNB main.mm libcfnb.a -lstdc++
 
           echo "App binary: $(ls -lh CFNB)"
       
