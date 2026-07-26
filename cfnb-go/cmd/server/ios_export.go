@@ -14,5 +14,13 @@ func main() {
 
 //export StartServer
 func StartServer(port *C.char) {
-	go RunServer(C.GoString(port))
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Fprintf(os.Stderr, "Server panicked: %v\n", r)
+				os.Stderr.Sync()
+			}
+		}()
+		RunServer(C.GoString(port))
+	}()
 }
