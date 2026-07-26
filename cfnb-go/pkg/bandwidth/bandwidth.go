@@ -14,6 +14,7 @@ import (
 
 const peakWindow = 50 * time.Millisecond
 const minPeakWindow = 20 * time.Millisecond
+const minFinalWindow = 5 * time.Millisecond
 
 type Result struct {
 	Node     string
@@ -21,7 +22,7 @@ type Result struct {
 	PeakMbps float64
 }
 
-func Measure(nodeStr string, bwURL string, connectTimeout, timeout, processBuffer, expectedSizeMB float64) Result {
+func Measure(ctx context.Context, nodeStr string, bwURL string, connectTimeout, timeout, processBuffer, expectedSizeMB float64) Result {
 	ip, port := extractIPPort(nodeStr)
 	if ip == "" {
 		return Result{Node: nodeStr}
@@ -81,21 +82,26 @@ func Measure(nodeStr string, bwURL string, connectTimeout, timeout, processBuffe
 
 		for {
 			n, err := resp.Body.Read(buf)
-			if n > 0 {
-				totalBytes += int64(n)
-				windowBytes += int64(n)
-			}
-			elapsed := time.Since(windowStart)
-			if elapsed >= peakWindow || err != nil {
-				if elapsed >= minPeakWindow {
-					windowSpeed := float64(windowBytes) * 8 / (elapsed.Seconds() * 1000 * 1000)
-					if windowSpeed > peakMbps {
-						peakMbps = windowSpeed
-					}
+		if n > 0 {
+			totalBytes += int64(n)
+			windowBytes += int64(n)
+		}
+		elapsed := time.Since(windowStart)
+		if elapsed >= peakWindow || err != nil {
+			if elapsed >= minPeakWindow {
+				windowSpeed := float64(windowBytes) * 8 / (elapsed.Seconds() * 1000 * 1000)
+				if windowSpeed > peakMbps {
+					peakMbps = windowSpeed
 				}
-				windowStart = time.Now()
-				windowBytes = 0
+			} else if err == io.EOF && windowBytes > 0 && elapsed >= minFinalWindow {
+				windowSpeed := float64(windowBytes) * 8 / (elapsed.Seconds() * 1000 * 1000)
+				if windowSpeed > peakMbps {
+					peakMbps = windowSpeed
+				}
 			}
+			windowStart = time.Now()
+			windowBytes = 0
+		}
 			if err != nil {
 				if err == io.EOF {
 					break
@@ -127,6 +133,9 @@ func Measure(nodeStr string, bwURL string, connectTimeout, timeout, processBuffe
 		return Result{Node: nodeStr}
 	case result := <-done:
 		return result
+	case <-ctx.Done():
+		transport.CloseIdleConnections()
+		return Result{Node: nodeStr}
 	}
 }
 
@@ -141,7 +150,7 @@ func extractIPPort(node string) (string, string) {
 	return parts[0], parts[1]
 }
 
-func Filter(candidates []string, bwURL string, connectTimeout, timeout, processBuffer, expectedSizeMB float64, workers int, progressInterval int) []Result {
+func Filter(ctx context.Context, candidates []string, bwURL string, connectTimeout, timeout, processBuffer, expectedSizeMB float64, workers int, progressInterval int) []Result {
 	if len(candidates) == 0 {
 		return nil
 	}
@@ -157,8 +166,24 @@ func Filter(candidates []string, bwURL string, connectTimeout, timeout, processB
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for node := range tasks {
-				results <- Measure(node, bwURL, connectTimeout, timeout, processBuffer, expectedSizeMB)
+			for {
+				select {
+				case node, ok := <-tasks:
+					if !ok {
+						return
+					}
+					if ctx.Err() != nil {
+						return
+					}
+					r := Measure(ctx, node, bwURL, connectTimeout, timeout, processBuffer, expectedSizeMB)
+					select {
+					case results <- r:
+					case <-ctx.Done():
+						return
+					}
+				case <-ctx.Done():
+					return
+				}
 			}
 		}()
 	}
@@ -177,6 +202,9 @@ func Filter(candidates []string, bwURL string, connectTimeout, timeout, processB
 	completed := 0
 	lastPrint := time.Now()
 	for r := range results {
+		if ctx.Err() != nil {
+			break
+		}
 		completed++
 		if r.Speed > 0 {
 			allResults = append(allResults, r)
@@ -196,16 +224,23 @@ func Filter(candidates []string, bwURL string, connectTimeout, timeout, processB
 	return allResults
 }
 
-func FilterWithRetry(candidates []string, bwURL string, connectTimeout, timeout, processBuffer, expectedSizeMB float64, workers int, progressInterval int, retryMax int, retryDelay float64, notify func(string, string)) []Result {
+func FilterWithRetry(ctx context.Context, candidates []string, bwURL string, connectTimeout, timeout, processBuffer, expectedSizeMB float64, workers int, progressInterval int, retryMax int, retryDelay float64, notify func(string, string)) []Result {
 	for attempt := 1; attempt <= retryMax; attempt++ {
+		if ctx.Err() != nil {
+			return nil
+		}
 		fmt.Printf("\n[带宽测速] 第 %d 轮测试...\n", attempt)
-		results := Filter(candidates, bwURL, connectTimeout, timeout, processBuffer, expectedSizeMB, workers, progressInterval)
+		results := Filter(ctx, candidates, bwURL, connectTimeout, timeout, processBuffer, expectedSizeMB, workers, progressInterval)
 		if len(results) > 0 {
 			return results
 		}
 		if attempt < retryMax {
 			fmt.Printf("本轮测速无有效结果，等待 %.0f 秒后重试...\n", retryDelay)
-			time.Sleep(time.Duration(retryDelay * float64(time.Second)))
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(time.Duration(retryDelay * float64(time.Second))):
+			}
 		}
 	}
 

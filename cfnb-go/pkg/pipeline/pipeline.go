@@ -59,14 +59,9 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 	if !cfg.UseGlobalMode {
 		modeStr = fmt.Sprintf("每个国家最优%d个", cfg.PerCountryTopN)
 	}
-	log("当前模式：%s，每个节点测试 %d 次 TCP 连接", modeStr, cfg.TCPProbes)
-	log("最低成功率要求：%.0f%%", cfg.MinSuccessRate*100)
-	log("IP 可用性二次筛选：%s", boolStr(cfg.TestAvailability))
-	log("HTTP检测：%s", boolStr(cfg.HTTPTestEnabled))
-	log("IPv6 客户端 IP 过滤（仅作用于DNS更新环节）：%s", boolStr(cfg.FilterIPv6Availability))
-	log("DNS黑名单过滤：%s，黑名单国家：%s", boolStr(cfg.FilterBlockedCountriesEnabled), strings.Join(cfg.BlockedCountries, ", "))
-	log("IP 风险等级过滤：%s（最高允许：%s）", boolStr(cfg.DNSIPRiskFilterEnabled), cfg.DNSIPRiskMaxLevel)
-	log("带宽测速候选数：%d，测速文件大小：%.1f MB，超时：%.0fs", cfg.BandwidthCandidates, cfg.BandwidthSizeMB, cfg.BandwidthTimeout)
+	log("模式: %s | TCP探测: %d次 | 最低成功率: %.0f%%", modeStr, cfg.TCPProbes, cfg.MinSuccessRate*100)
+	log("可用性: %s | HTTP检测: %s | DNS黑名单: %s | 风险等级: %s", boolStr(cfg.TestAvailability), boolStr(cfg.HTTPTestEnabled), boolStr(cfg.FilterBlockedCountriesEnabled), map[bool]string{true: cfg.DNSIPRiskMaxLevel, false: "禁用"}[cfg.DNSIPRiskFilterEnabled])
+	log("候选数: %d | 文件大小: %.1fMB | 超时: %.0fs", cfg.BandwidthCandidates, cfg.BandwidthSizeMB, cfg.BandwidthTimeout)
 
 	if cfg.FilterCountriesEnabled {
 		log("前置白名单过滤：启用，仅保留：%s", strings.Join(cfg.AllowedCountries, ", "))
@@ -74,10 +69,10 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 
 	bwURL := strings.Replace(cfg.BandwidthURLTemplate, "{bytes}", fmt.Sprintf("%d", int(cfg.BandwidthSizeMB*1024*1024)), 1)
 
-	nodes := fetchAllSources(cfg, log)
+	nodes := fetchAllSources(ctx, cfg, log)
 	if len(nodes) == 0 {
 		log("没有获取到任何有效节点，退出。")
-		return nil, nil
+		return nil, fmt.Errorf("没有获取到任何有效节点")
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -86,16 +81,16 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 	nodes = prepFilter(nodes, cfg, log)
 	if len(nodes) == 0 {
 		log("过滤后无任何节点，退出。")
-		return nil, nil
+		return nil, fmt.Errorf("过滤后无任何节点")
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	tcpResults := tcp.TestAll(nodes, cfg.Timeout, cfg.TCPProbes, cfg.MinSuccessRate, cfg.MaxWorkers, cfg.ProgressPrintInterval)
+	tcpResults := tcp.TestAll(ctx, nodes, cfg.Timeout, cfg.TCPProbes, cfg.MinSuccessRate, cfg.MaxWorkers)
 	if len(tcpResults) == 0 {
 		log("没有通过成功率筛选的节点，请检查网络或降低 MIN_SUCCESS_RATE。")
-		return nil, nil
+		return nil, fmt.Errorf("没有通过成功率筛选的节点")
 	}
 
 	sortTCPResults(tcpResults)
@@ -115,6 +110,7 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 	if cfg.TestAvailability {
 		var availExtra map[string]map[string]string
 		candidates, availIPInfo, availCountryInfo, availExtra = availability.FilterWithRetry(
+			ctx,
 			candidates,
 			cfg.AvailabilityCheckAPI,
 			cfg.AvailabilityConnectTimeout,
@@ -142,6 +138,7 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 	httpJitterMap := make(map[string]float64)
 	if cfg.HTTPTestEnabled {
 		candidates, httpLatencyMap, httpJitterMap = httpcheck.FilterWithRetry(
+			ctx,
 			candidates,
 			cfg.HTTPTestTimeout,
 			cfg.HTTPTestConnectTimeout,
@@ -159,6 +156,7 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 	}
 
 	bwResults := bandwidth.FilterWithRetry(
+		ctx,
 		candidates,
 		bwURL,
 		cfg.BandwidthConnectTimeout,
@@ -250,16 +248,19 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 	}, nil
 }
 
-func fetchAllSources(cfg *config.Config, log func(string, ...interface{})) []string {
+func fetchAllSources(ctx context.Context, cfg *config.Config, log func(string, ...interface{})) []string {
 	nodes := make([]string, 0)
 	seen := make(map[string]bool)
 
 	if cfg.UseURLSource {
 		for _, source := range cfg.AdditionalSources {
+			if ctx.Err() != nil {
+				return nodes
+			}
 			if !source.Enabled || source.URL == "" {
 				continue
 			}
-			sourceNodes, err := parser.FetchSourceWithFallback(source.URL, cfg.FetchMaxRetries, cfg.FetchRetryDelay, cfg.FetchConnectTimeout, cfg.FetchTimeout, cfg.AvailabilityCheckAPI, cfg.AvailabilityConnectTimeout, cfg.AvailabilityTimeout, cfg.FallbackWorkers)
+			sourceNodes, err := parser.FetchSourceWithFallback(ctx, source.URL, cfg.FetchMaxRetries, cfg.FetchRetryDelay, cfg.FetchConnectTimeout, cfg.FetchTimeout, cfg.AvailabilityCheckAPI, cfg.AvailabilityConnectTimeout, cfg.AvailabilityTimeout, cfg.FallbackWorkers)
 			if err != nil {
 				log("获取数据源失败: %v", err)
 				continue
@@ -272,17 +273,17 @@ func fetchAllSources(cfg *config.Config, log func(string, ...interface{})) []str
 				}
 			}
 		}
-	} else {
-		if len(cfg.DirectNodes) > 0 {
-			raw := strings.Join(cfg.DirectNodes, "\n")
-			directNodes := parser.ParseAdaptiveWithFallback(raw, cfg.AvailabilityCheckAPI, cfg.AvailabilityConnectTimeout, cfg.AvailabilityTimeout, cfg.FallbackWorkers)
-			log("直接输入 IP 解析到 %d 个节点", len(directNodes))
-			for _, n := range directNodes {
-				key := strings.SplitN(n, "#", 2)[0]
-				if !seen[key] {
-					seen[key] = true
-					nodes = append(nodes, n)
-				}
+	}
+
+	if len(cfg.DirectNodes) > 0 {
+		raw := strings.Join(cfg.DirectNodes, "\n")
+		directNodes := parser.ParseAdaptiveWithFallback(ctx, raw, cfg.AvailabilityCheckAPI, cfg.AvailabilityConnectTimeout, cfg.AvailabilityTimeout, cfg.FallbackWorkers)
+		log("直接输入 IP 解析到 %d 个节点", len(directNodes))
+		for _, n := range directNodes {
+			key := strings.SplitN(n, "#", 2)[0]
+			if !seen[key] {
+				seen[key] = true
+				nodes = append(nodes, n)
 			}
 		}
 	}
@@ -445,12 +446,11 @@ func printFinalNodes(finalSelected []string, speedMap map[string]float64, latenc
 		line := fmt.Sprintf("%d. %s 速度 %.2f Mbps", i+1, node, speed)
 		if hasHTTP {
 			line += fmt.Sprintf(" 延迟 %.2f ms", httpLat)
+		} else if tcpLat > 0 {
+			line += fmt.Sprintf(" 延迟 %.2f ms", tcpLat*1000)
 		}
 		if hasJitter {
 			line += fmt.Sprintf(" 抖动 %.2f ms", httpJitter)
-		}
-		if tcpLat > 0 {
-			line += fmt.Sprintf(" 延迟 %.2f ms", tcpLat*1000)
 		}
 		log(line)
 	}
@@ -719,12 +719,11 @@ func printDNSNodes(content, nodes []string, bwResults []bandwidth.Result, latenc
 
 		if lat, ok := httpLatencyMap[nodes[i]]; ok {
 			line += fmt.Sprintf(" 延迟 %.2f ms", lat)
+		} else if lat, ok := latencyMap[nodes[i]]; ok {
+			line += fmt.Sprintf(" 延迟 %.2f ms", lat*1000)
 		}
 		if jitter, ok := httpJitterMap[nodes[i]]; ok {
 			line += fmt.Sprintf(" 抖动 %.2f ms", jitter)
-		}
-		if lat, ok := latencyMap[nodes[i]]; ok {
-			line += fmt.Sprintf(" 延迟 %.2f ms", lat*1000)
 		}
 		log(line)
 	}

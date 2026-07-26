@@ -365,7 +365,6 @@ tr:last-child td { border-bottom: none; }
         <input type="number" id="cfgBWTimeout" value="3" min="1" max="30" step="0.5" onchange="saveConfig()">
         <label>最低成功率</label>
         <input type="number" id="cfgMinSuccessRate" value="100" min="1" max="100" onchange="saveConfig()" style="width:100%">
-        <span style="font-size:10px;color:var(--text-muted);grid-column:2">% (0-100)</span>
     </div>
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
       <div class="toggle-row" style="margin-bottom:10px">
@@ -377,22 +376,24 @@ tr:last-child td { border-bottom: none; }
           <span>HTTP 检测</span>
           <label class="toggle"><input type="checkbox" id="cfgHTTPTest" checked onchange="saveConfig()"><span class="slider"></span></label>
         </div>
+      </div>
+      <div class="toggle-row" style="margin-bottom:10px">
         <div class="toggle-group">
           <span>端口过滤</span>
-          <label class="toggle"><input type="checkbox" id="cfgPortFilter" onchange="togglePortFilter()"><span class="slider"></span></label>
+          <label class="toggle"><input type="checkbox" id="cfgPortFilter" checked onchange="togglePortFilter()"><span class="slider"></span></label>
         </div>
         <div class="toggle-group">
           <span>屏蔽国家</span>
-          <label class="toggle"><input type="checkbox" id="cfgBlockCountry" onchange="toggleBlockCountry()"><span class="slider"></span></label>
+          <label class="toggle"><input type="checkbox" id="cfgBlockCountry" checked onchange="toggleBlockCountry()"><span class="slider"></span></label>
         </div>
       </div>
-      <div id="portFilterRow" style="display:none;margin-bottom:8px">
+      <div id="portFilterRow" style="margin-bottom:8px">
         <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">过滤端口（逗号分隔）</label>
-        <input type="text" id="cfgPorts" value="443,8443,2053,2096,2087,2083" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;transition:border-color .2s" onchange="saveConfig()">
+        <input type="text" id="cfgPorts" value="443" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;transition:border-color .2s" onchange="saveConfig()">
       </div>
-      <div id="blockCountryRow" style="display:none;margin-bottom:8px">
+      <div id="blockCountryRow" style="margin-bottom:8px">
         <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">屏蔽国家代码（逗号分隔，如 CN,US,KR）</label>
-        <input type="text" id="cfgBlockedCountries" value="KR" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;transition:border-color .2s" onchange="saveConfig()">
+        <input type="text" id="cfgBlockedCountries" value="CN" style="width:100%;padding:6px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none;transition:border-color .2s" onchange="saveConfig()">
       </div>
       <div style="margin-bottom:8px">
         <div class="toggle-row" style="margin-bottom:6px">
@@ -616,12 +617,12 @@ function resetConfig() {
   document.getElementById('cfgMinSuccessRate').value = '100';
   document.getElementById('cfgAvailability').checked = true;
   document.getElementById('cfgHTTPTest').checked = true;
-  document.getElementById('cfgPortFilter').checked = false;
-  document.getElementById('portFilterRow').style.display = 'none';
-  document.getElementById('cfgPorts').value = '443,8443,2053,2096,2087,2083';
-  document.getElementById('cfgBlockCountry').checked = false;
-  document.getElementById('blockCountryRow').style.display = 'none';
-  document.getElementById('cfgBlockedCountries').value = 'KR';
+  document.getElementById('cfgPortFilter').checked = true;
+  document.getElementById('portFilterRow').style.display = 'block';
+  document.getElementById('cfgPorts').value = '443';
+  document.getElementById('cfgBlockCountry').checked = true;
+  document.getElementById('blockCountryRow').style.display = 'block';
+  document.getElementById('cfgBlockedCountries').value = 'CN';
   document.getElementById('cfgUseDirectIP').checked = false;
   document.getElementById('urlSourceSection').style.display = 'block';
   document.getElementById('directIPSection').style.display = 'none';
@@ -642,7 +643,7 @@ function startPipeline() {
     tcpTimeout: parseFloat(document.getElementById('cfgTCPTimeout').value) || 3,
     bandwidthWorkers: parseInt(document.getElementById('cfgBWWorkers').value) || 3,
     bandwidthTimeout: parseFloat(document.getElementById('cfgBWTimeout').value) || 3,
-    minSuccessRate: parseInt(document.getElementById('cfgMinSuccessRate').value) || 100,
+    minSuccessRate: (parseInt(document.getElementById('cfgMinSuccessRate').value) || 100) / 100,
     testAvailability: document.getElementById('cfgAvailability').checked,
     httpTestEnabled: document.getElementById('cfgHTTPTest').checked,
     preFilterPortEnabled: document.getElementById('cfgPortFilter').checked,
@@ -730,9 +731,15 @@ function estimateProgress(p) {
 
 function updateLogs(logs) {
   const panel = document.getElementById('logPanel');
-  if (!logs || logs.length === 0) return;
+  if (!logs) return;
+  if (logs.length === 0) {
+    const hasLines = panel.querySelectorAll('.log-line').length > 0;
+    if (hasLines) panel.innerHTML = '';
+    return;
+  }
   const existing = panel.querySelectorAll('.log-line').length;
   if (existing >= logs.length) return;
+  if (existing === 0) panel.innerHTML = '';
   for (let i = existing; i < logs.length; i++) {
     const l = logs[i];
     const div = document.createElement('div');

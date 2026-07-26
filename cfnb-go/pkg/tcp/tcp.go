@@ -1,6 +1,7 @@
 package tcp
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strings"
@@ -60,7 +61,7 @@ func TestNode(nodeStr string, timeout float64, probes int, minSuccessRate float6
 	}
 }
 
-func TestAll(nodes []string, timeout float64, probes int, minSuccessRate float64, workers int, progressInterval int) []TCPResult {
+func TestAll(ctx context.Context, nodes []string, timeout float64, probes int, minSuccessRate float64, workers int) []TCPResult {
 	total := len(nodes)
 	if total == 0 {
 		return nil
@@ -76,9 +77,24 @@ func TestAll(nodes []string, timeout float64, probes int, minSuccessRate float64
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for node := range tasks {
-				res := TestNode(node, timeout, probes, minSuccessRate)
-				results <- res
+			for {
+				select {
+				case node, ok := <-tasks:
+					if !ok {
+						return
+					}
+					if ctx.Err() != nil {
+						return
+					}
+					res := TestNode(node, timeout, probes, minSuccessRate)
+					select {
+					case results <- res:
+					case <-ctx.Done():
+						return
+					}
+				case <-ctx.Done():
+					return
+				}
 			}
 		}()
 	}
@@ -95,16 +111,19 @@ func TestAll(nodes []string, timeout float64, probes int, minSuccessRate float64
 
 	var allResults []TCPResult
 	completed := 0
-	lastPrint := time.Now()
+	nextThreshold := 25
 	for r := range results {
+		if ctx.Err() != nil {
+			break
+		}
 		completed++
 		if r != nil {
 			allResults = append(allResults, *r)
 		}
-		now := time.Now()
-		if now.Sub(lastPrint) >= time.Duration(progressInterval)*time.Second || completed == total {
-			fmt.Printf("\n进度：%d/%d (%.1f%%)", completed, total, float64(completed)/float64(total)*100)
-			lastPrint = now
+		progress := 100 * completed / total
+		if progress >= nextThreshold || completed == total {
+			fmt.Printf("\n进度：%d/%d (%d%%)", completed, total, progress)
+			nextThreshold += 25
 		}
 	}
 	fmt.Println("\nTCP 测试完成！")

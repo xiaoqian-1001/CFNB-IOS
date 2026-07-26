@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -197,7 +198,7 @@ func ParseAdaptive(text string) []string {
 	return parsed
 }
 
-func ParseAdaptiveWithFallback(text string, availabilityAPI string, connectTimeout, readTimeout float64, workers int) []string {
+func ParseAdaptiveWithFallback(ctx context.Context, text string, availabilityAPI string, connectTimeout, readTimeout float64, workers int) []string {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return nil
@@ -217,7 +218,7 @@ func ParseAdaptiveWithFallback(text string, availabilityAPI string, connectTimeo
 
 	fmt.Printf("%d 个节点未能识别或缺少国家，通过可用性检测 API 查询国家...\n", len(pending))
 	os.Stdout.Sync()
-	resolved := ResolveCountriesBatch(pending, availabilityAPI, connectTimeout, readTimeout, workers, 1)
+	resolved := ResolveCountriesBatch(ctx, pending, availabilityAPI, connectTimeout, readTimeout, workers, 1)
 	for ipport, code := range resolved {
 		if code != "" {
 			parsed = append(parsed, fmt.Sprintf("%s#%s", ipport, code))
@@ -234,11 +235,11 @@ type FetchResult struct {
 	Error error
 }
 
-func FetchSource(urlStr string, maxRetries int, retryDelay float64, connectTimeout float64, readTimeout float64) ([]string, error) {
-	return FetchSourceWithFallback(urlStr, maxRetries, retryDelay, connectTimeout, readTimeout, "", 0, 0, 0)
+func FetchSource(ctx context.Context, urlStr string, maxRetries int, retryDelay float64, connectTimeout float64, readTimeout float64) ([]string, error) {
+	return FetchSourceWithFallback(ctx, urlStr, maxRetries, retryDelay, connectTimeout, readTimeout, "", 0, 0, 0)
 }
 
-func FetchSourceWithFallback(urlStr string, maxRetries int, retryDelay float64, connectTimeout float64, readTimeout float64, availabilityAPI string, availConnectTimeout, availReadTimeout float64, fallbackWorkers int) ([]string, error) {
+func FetchSourceWithFallback(ctx context.Context, urlStr string, maxRetries int, retryDelay float64, connectTimeout float64, readTimeout float64, availabilityAPI string, availConnectTimeout, availReadTimeout float64, fallbackWorkers int) ([]string, error) {
 	if urlStr == "" {
 		return nil, nil
 	}
@@ -248,11 +249,14 @@ func FetchSourceWithFallback(urlStr string, maxRetries int, retryDelay float64, 
 	}
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		msg := fmt.Sprintf("正在请求数据源 %s (尝试 %d/%d) ...", urlStr, attempt, maxRetries)
 		fmt.Println(msg)
 		os.Stdout.Sync()
 
-		req, err := http.NewRequest("GET", urlStr, nil)
+		req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -266,7 +270,11 @@ func FetchSourceWithFallback(urlStr string, maxRetries int, retryDelay float64, 
 				retryMsg := fmt.Sprintf("等待 %.0f 秒后重试...", retryDelay)
 				fmt.Println(retryMsg)
 				os.Stdout.Sync()
-				time.Sleep(time.Duration(retryDelay * float64(time.Second)))
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-time.After(time.Duration(retryDelay * float64(time.Second))):
+				}
 			}
 			continue
 		}
@@ -278,14 +286,18 @@ func FetchSourceWithFallback(urlStr string, maxRetries int, retryDelay float64, 
 			fmt.Println(readErrMsg)
 			os.Stdout.Sync()
 			if attempt < maxRetries {
-				time.Sleep(time.Duration(retryDelay * float64(time.Second)))
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-time.After(time.Duration(retryDelay * float64(time.Second))):
+				}
 			}
 			continue
 		}
 
 		var nodes []string
 		if availabilityAPI != "" {
-			nodes = ParseAdaptiveWithFallback(string(body), availabilityAPI, availConnectTimeout, availReadTimeout, fallbackWorkers)
+			nodes = ParseAdaptiveWithFallback(ctx, string(body), availabilityAPI, availConnectTimeout, availReadTimeout, fallbackWorkers)
 		} else {
 			nodes = ParseAdaptive(string(body))
 		}
@@ -346,7 +358,7 @@ func queryCountryAPI(ipport, apiURL string, connectTimeout, readTimeout float64)
 	return strings.ToUpper(country)
 }
 
-func ResolveCountriesBatch(ipports []string, apiURL string, connectTimeout, readTimeout float64, workers int, progressInterval int) map[string]string {
+func ResolveCountriesBatch(ctx context.Context, ipports []string, apiURL string, connectTimeout, readTimeout float64, workers int, progressInterval int) map[string]string {
 	results := make(map[string]string)
 	total := len(ipports)
 	if total == 0 {
@@ -374,23 +386,27 @@ func ResolveCountriesBatch(ipports []string, apiURL string, connectTimeout, read
 	completed := 0
 	lastPrint := time.Now()
 	for completed < total {
-		r := <-resultCh
-		results[r.ipport] = r.code
-		completed++
+		select {
+		case <-ctx.Done():
+			return results
+		case r := <-resultCh:
+			results[r.ipport] = r.code
+			completed++
 
-		now := time.Now()
-		if now.Sub(lastPrint) >= time.Duration(progressInterval)*time.Second || completed == total {
-			msg := fmt.Sprintf("[备用API查询] 进度：%d/%d (%.1f%%)", completed, total, float64(completed)/float64(total)*100)
-			fmt.Println(msg)
-			os.Stdout.Sync()
-			lastPrint = now
+			now := time.Now()
+			if now.Sub(lastPrint) >= time.Duration(progressInterval)*time.Second || completed == total {
+				msg := fmt.Sprintf("[备用API查询] 进度：%d/%d (%.1f%%)", completed, total, float64(completed)/float64(total)*100)
+				fmt.Println(msg)
+				os.Stdout.Sync()
+				lastPrint = now
+			}
 		}
 	}
 	fmt.Println()
 	return results
 }
 
-func ParseWithFallback(text string, availabilityAPI string, connectTimeout, readTimeout float64, workers int) []string {
+func ParseWithFallback(ctx context.Context, text string, availabilityAPI string, connectTimeout, readTimeout float64, workers int) []string {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return nil
@@ -410,7 +426,7 @@ func ParseWithFallback(text string, availabilityAPI string, connectTimeout, read
 
 	fmt.Printf("%d 个节点未能识别或缺少国家，通过可用性检测 API 查询国家...\n", len(pending))
 	os.Stdout.Sync()
-	resolved := ResolveCountriesBatch(pending, availabilityAPI, connectTimeout, readTimeout, workers, 1)
+	resolved := ResolveCountriesBatch(ctx, pending, availabilityAPI, connectTimeout, readTimeout, workers, 1)
 	for ipport, code := range resolved {
 		if code != "" {
 			parsed = append(parsed, fmt.Sprintf("%s#%s", ipport, code))

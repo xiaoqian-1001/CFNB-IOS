@@ -1,6 +1,7 @@
 package availability
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -109,7 +110,7 @@ func extractIPPort(node string) (string, string) {
 	return parts[0], parts[1]
 }
 
-func FilterCandidates(candidates []string, apiURL string, connectTimeout, readTimeout float64, innerRetryEnabled bool, innerRetryMax int, innerRetryDelay float64, workers int, progressInterval int) (passed []string, ipInfo map[string]string, countryInfo map[string]string, exitDetails map[string]map[string]string) {
+func FilterCandidates(ctx context.Context, candidates []string, apiURL string, connectTimeout, readTimeout float64, innerRetryEnabled bool, innerRetryMax int, innerRetryDelay float64, workers int, progressInterval int) (passed []string, ipInfo map[string]string, countryInfo map[string]string, exitDetails map[string]map[string]string) {
 	ipInfo = make(map[string]string)
 	countryInfo = make(map[string]string)
 	exitDetails = make(map[string]map[string]string)
@@ -129,8 +130,24 @@ func FilterCandidates(candidates []string, apiURL string, connectTimeout, readTi
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for node := range tasks {
-				results <- Check(node, apiURL, connectTimeout, readTimeout, innerRetryEnabled, innerRetryMax, innerRetryDelay)
+			for {
+				select {
+				case node, ok := <-tasks:
+					if !ok {
+						return
+					}
+					if ctx.Err() != nil {
+						return
+					}
+					r := Check(node, apiURL, connectTimeout, readTimeout, innerRetryEnabled, innerRetryMax, innerRetryDelay)
+					select {
+					case results <- r:
+					case <-ctx.Done():
+						return
+					}
+				case <-ctx.Done():
+					return
+				}
 			}
 		}()
 	}
@@ -148,6 +165,9 @@ func FilterCandidates(candidates []string, apiURL string, connectTimeout, readTi
 	completed := 0
 	lastPrint := time.Now()
 	for r := range results {
+		if ctx.Err() != nil {
+			break
+		}
 		completed++
 		if r.OK {
 			passed = append(passed, r.Node)
@@ -165,21 +185,28 @@ func FilterCandidates(candidates []string, apiURL string, connectTimeout, readTi
 	return
 }
 
-func FilterWithRetry(candidates []string, apiURL string, connectTimeout, readTimeout float64, innerRetryEnabled bool, innerRetryMax int, innerRetryDelay float64, retryMax int, retryDelay float64, workers int, progressInterval int, notify func(string, string)) ([]string, map[string]string, map[string]string, map[string]map[string]string) {
+func FilterWithRetry(ctx context.Context, candidates []string, apiURL string, connectTimeout, readTimeout float64, innerRetryEnabled bool, innerRetryMax int, innerRetryDelay float64, retryMax int, retryDelay float64, workers int, progressInterval int, notify func(string, string)) ([]string, map[string]string, map[string]string, map[string]map[string]string) {
 	if len(candidates) == 0 {
 		return candidates, make(map[string]string), make(map[string]string), make(map[string]map[string]string)
 	}
 
 	for attempt := 1; attempt <= retryMax; attempt++ {
+		if ctx.Err() != nil {
+			return candidates, make(map[string]string), make(map[string]string), make(map[string]map[string]string)
+		}
 		fmt.Printf("\n[可用性检测] 第 %d 轮检测...\n", attempt)
-		passed, ipInfo, countryInfo, exitDetails := FilterCandidates(candidates, apiURL, connectTimeout, readTimeout, innerRetryEnabled, innerRetryMax, innerRetryDelay, workers, progressInterval)
+		passed, ipInfo, countryInfo, exitDetails := FilterCandidates(ctx, candidates, apiURL, connectTimeout, readTimeout, innerRetryEnabled, innerRetryMax, innerRetryDelay, workers, progressInterval)
 		if len(passed) > 0 {
 			fmt.Printf("可用性检测通过 %d 个节点\n", len(passed))
 			return passed, ipInfo, countryInfo, exitDetails
 		}
 		if attempt < retryMax {
 			fmt.Printf("本轮可用性检测通过率为 0%%，等待 %.0f 秒后重试...\n", retryDelay)
-			time.Sleep(time.Duration(retryDelay * float64(time.Second)))
+			select {
+			case <-ctx.Done():
+				return candidates, make(map[string]string), make(map[string]string), make(map[string]map[string]string)
+			case <-time.After(time.Duration(retryDelay * float64(time.Second))):
+			}
 		}
 	}
 

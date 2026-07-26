@@ -1,6 +1,7 @@
 package httpcheck
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"math"
@@ -114,7 +115,7 @@ func extractIPPort(node string) (string, string) {
 	return host, port
 }
 
-func FilterCandidates(candidates []string, timeout, connectTimeout float64, method string, jitterSamples int, workers int, progressInterval int) (passed []string, latencyMap map[string]float64, jitterMap map[string]float64) {
+func FilterCandidates(ctx context.Context, candidates []string, timeout, connectTimeout float64, method string, jitterSamples int, workers int, progressInterval int) (passed []string, latencyMap map[string]float64, jitterMap map[string]float64) {
 	latencyMap = make(map[string]float64)
 	jitterMap = make(map[string]float64)
 
@@ -133,8 +134,24 @@ func FilterCandidates(candidates []string, timeout, connectTimeout float64, meth
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for node := range tasks {
-				results <- Check(node, timeout, connectTimeout, method, jitterSamples)
+			for {
+				select {
+				case node, ok := <-tasks:
+					if !ok {
+						return
+					}
+					if ctx.Err() != nil {
+						return
+					}
+					r := Check(node, timeout, connectTimeout, method, jitterSamples)
+					select {
+					case results <- r:
+					case <-ctx.Done():
+						return
+					}
+				case <-ctx.Done():
+					return
+				}
 			}
 		}()
 	}
@@ -152,6 +169,9 @@ func FilterCandidates(candidates []string, timeout, connectTimeout float64, meth
 	completed := 0
 	lastPrint := time.Now()
 	for r := range results {
+		if ctx.Err() != nil {
+			break
+		}
 		completed++
 		if r.Valid {
 			passed = append(passed, r.Node)
@@ -168,21 +188,28 @@ func FilterCandidates(candidates []string, timeout, connectTimeout float64, meth
 	return
 }
 
-func FilterWithRetry(candidates []string, timeout, connectTimeout float64, method string, jitterSamples int, workers int, progressInterval int, maxRounds int, roundDelay float64, notify func(string, string)) ([]string, map[string]float64, map[string]float64) {
+func FilterWithRetry(ctx context.Context, candidates []string, timeout, connectTimeout float64, method string, jitterSamples int, workers int, progressInterval int, maxRounds int, roundDelay float64, notify func(string, string)) ([]string, map[string]float64, map[string]float64) {
 	if len(candidates) == 0 {
 		return candidates, make(map[string]float64), make(map[string]float64)
 	}
 
 	for round := 1; round <= maxRounds; round++ {
+		if ctx.Err() != nil {
+			return candidates, make(map[string]float64), make(map[string]float64)
+		}
 		fmt.Printf("\n[HTTP检测] 第 %d 轮检测...\n", round)
-		passed, latencyMap, jitterMap := FilterCandidates(candidates, timeout, connectTimeout, method, jitterSamples, workers, progressInterval)
+		passed, latencyMap, jitterMap := FilterCandidates(ctx, candidates, timeout, connectTimeout, method, jitterSamples, workers, progressInterval)
 		if len(passed) > 0 {
 			fmt.Printf("HTTP检测通过 %d 个节点\n", len(passed))
 			return passed, latencyMap, jitterMap
 		}
 		if round < maxRounds {
 			fmt.Printf("本轮 HTTP 检测通过率为 0%%，等待 %.0f 秒后重试...\n", roundDelay)
-			time.Sleep(time.Duration(roundDelay * float64(time.Second)))
+			select {
+			case <-ctx.Done():
+				return candidates, make(map[string]float64), make(map[string]float64)
+			case <-time.After(time.Duration(roundDelay * float64(time.Second))):
+			}
 		}
 	}
 

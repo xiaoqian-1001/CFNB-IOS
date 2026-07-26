@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -26,10 +27,11 @@ var embeddedWeb embed.FS
 var webFS fs.FS
 
 type PipelineStatus struct {
-	Running  bool            `json:"running"`
-	Progress string          `json:"progress"`
+	Running  bool             `json:"running"`
+	Progress string           `json:"progress"`
 	Results  *PipelineResults `json:"results,omitempty"`
-	Logs     []string        `json:"logs"`
+	Logs     []string         `json:"logs"`
+	RunID    int64            `json:"-"`
 }
 
 type NodeInfo struct {
@@ -59,6 +61,7 @@ var (
 	notifMu            sync.Mutex
 	lastPipelineResult *pipeline.Result
 	cancelPipeline     func()
+	currentRunID       int64
 )
 
 func RunServer(port string) {
@@ -67,6 +70,7 @@ func RunServer(port string) {
 	http.HandleFunc("/api/events", middlewareCORS(handleEvents))
 	http.HandleFunc("/api/status", middlewareCORS(handleStatus))
 	http.HandleFunc("/api/stop", middlewareCORS(handleStop))
+	http.HandleFunc("/api/local-ip", middlewareCORS(handleLocalIP))
 
 	fmt.Printf("CFNB Web Dashboard starting on :%s\n", port)
 	fmt.Fprintf(os.Stderr, "CFNB Web Dashboard starting on :%s\n", port)
@@ -218,6 +222,10 @@ type RunConfig struct {
 	PreFilterPorts         []int    `json:"preFilterPorts"`
 	PreFilterBlockedEnabled *bool   `json:"preFilterBlockedEnabled"`
 	PreFilterBlockedCountries []string `json:"preFilterBlockedCountries"`
+	CFEnabled                *bool    `json:"cfEnabled"`
+	GitSyncEnabled           *bool    `json:"gitSyncEnabled"`
+	DNSBlacklistFilter       *bool    `json:"dnsBlacklistFilter"`
+	DNSRiskMaxLevel          string   `json:"dnsRiskMaxLevel"`
 }
 
 func handleRun(w http.ResponseWriter, r *http.Request) {
@@ -232,7 +240,9 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Pipeline already running", http.StatusConflict)
 		return
 	}
-	status = PipelineStatus{Running: true, Logs: []string{}}
+	currentRunID++
+	runID := currentRunID
+	status = PipelineStatus{Running: true, Logs: []string{}, RunID: runID}
 	mu.Unlock()
 	broadcast()
 
@@ -243,13 +253,13 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	addLog(fmt.Sprintf("接收到配置: 前置端口过滤=%v(%t), 端口=%v, 前置黑名单过滤=%v(%t), 黑名单国家=%v",
-		rc.PreFilterPortEnabled, boolPtrVal(rc.PreFilterPortEnabled), rc.PreFilterPorts, rc.PreFilterBlockedEnabled, boolPtrVal(rc.PreFilterBlockedEnabled), rc.PreFilterBlockedCountries))
+	addLog(fmt.Sprintf("前置过滤: 端口=%v(%v), 黑名单国家=%v(%v)",
+		rc.PreFilterPorts, boolPtrVal(rc.PreFilterPortEnabled), rc.PreFilterBlockedCountries, boolPtrVal(rc.PreFilterBlockedEnabled)))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancelPipeline = cancel
 
-	go runPipeline(ctx, rc)
+	go runPipeline(ctx, rc, runID)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
@@ -263,24 +273,97 @@ func handleStop(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"ok":false,"msg":"没有正在运行的任务"}`))
 		return
 	}
+	stopRunID := status.RunID
 	mu.Unlock()
 	if cancelPipeline != nil {
 		cancelPipeline()
 	}
+	mu.Lock()
+	status.Running = false
+	status.Progress = "已停止"
+	mu.Unlock()
+	broadcast()
+	_ = stopRunID
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"ok":true,"msg":"正在终止任务..."}`))
+	w.Write([]byte(`{"ok":true}`))
 }
 
-func runPipeline(ctx context.Context, rc RunConfig) {
+func handleLocalIP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	publicIP := ""
+	resp, err := http.Get("https://api.ipify.org?format=text")
+	if err == nil {
+		defer resp.Body.Close()
+		data, _ := io.ReadAll(resp.Body)
+		publicIP = strings.TrimSpace(string(data))
+	}
+
+	var localIPs []string
+	addrs, err := net.InterfaceAddrs()
+	if err == nil {
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
+				localIPs = append(localIPs, ipnet.IP.String())
+			}
+		}
+	}
+	if localIPs == nil {
+		localIPs = []string{}
+	}
+
+	isp := ""
+	location := ""
+	if publicIP != "" {
+		geoResp, err := http.Get("http://ip-api.com/json/" + publicIP + "?fields=isp,city,regionName,country")
+		if err == nil {
+			defer geoResp.Body.Close()
+			geoData, _ := io.ReadAll(geoResp.Body)
+			var geo struct {
+				ISP         string `json:"isp"`
+				City        string `json:"city"`
+				RegionName  string `json:"regionName"`
+				Country     string `json:"country"`
+			}
+			if json.Unmarshal(geoData, &geo) == nil {
+				isp = geo.ISP
+				parts := []string{}
+				if geo.City != "" {
+					parts = append(parts, geo.City)
+				}
+				if geo.RegionName != "" {
+					parts = append(parts, geo.RegionName)
+				}
+				if geo.Country != "" {
+					parts = append(parts, geo.Country)
+				}
+				location = strings.Join(parts, " | ")
+			}
+		}
+	}
+
+	result := map[string]interface{}{
+		"publicIP": publicIP,
+		"localIPs": localIPs,
+		"isp":      isp,
+		"location": location,
+	}
+	json.NewEncoder(w).Encode(result)
+}
+
+func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 	defer func() {
 		mu.Lock()
-		status.Running = false
+		if currentRunID == runID {
+			status.Running = false
+		}
 		mu.Unlock()
 		broadcast()
 	}()
 
 	addLog("开始 CFNB 管道...")
 	addLog("================================")
+	addLog(fmt.Sprintf("配置: mode=%s globalTopN=%d perCountryTopN=%d", rc.Mode, rc.GlobalTopN, rc.PerCountryTopN))
 	updateProgress("Phase 1/6: 获取数据源")
 
 	cfg, err := config.Load("config.json")
@@ -360,6 +443,22 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 	if len(rc.PreFilterBlockedCountries) > 0 {
 		cfg.PreFilterBlockedCountries = rc.PreFilterBlockedCountries
 	}
+	if rc.CFEnabled != nil {
+		cfg.CFEnabled = *rc.CFEnabled
+	}
+	if rc.GitSyncEnabled != nil {
+		cfg.GitHubSyncEnabled = *rc.GitSyncEnabled
+	}
+	if rc.DNSBlacklistFilter != nil {
+		cfg.DNSIPRiskFilterEnabled = *rc.DNSBlacklistFilter
+	}
+	if rc.DNSRiskMaxLevel != "" {
+		if rc.DNSRiskMaxLevel == "关闭" {
+			cfg.DNSIPRiskFilterEnabled = false
+		} else {
+			cfg.DNSIPRiskMaxLevel = rc.DNSRiskMaxLevel
+		}
+	}
 
 	pr, pw, err := os.Pipe()
 	if err != nil {
@@ -400,7 +499,14 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 		var leftover []byte
 		for {
 			n, err := syscall.Read(fd, buf)
-			if err != nil {
+			if err != nil || n == 0 {
+				if len(leftover) > 0 {
+					line := strings.TrimRight(string(leftover), "\r")
+					if line != "" {
+						addLog(line)
+						updateProgressFromLog(line)
+					}
+				}
 				break
 			}
 			data := append(leftover, buf[:n]...)
@@ -429,14 +535,31 @@ func runPipeline(ctx context.Context, rc RunConfig) {
 			pw.Close()
 			restoreStdout()
 			<-scannerDone
+			<-done
+			mu.Lock()
+			lastPipelineResult = result
+			mu.Unlock()
 			addLog("================================")
-			addLog("任务已被用户终止")
+			addLog("停止成功")
 			loadResults()
 			return
 		case <-ticker.C:
 			output := outBuf.String()
 			if output != lastOutput {
 				lastOutput = output
+			}
+			if ctx.Err() != nil {
+				pw.Close()
+				restoreStdout()
+				<-scannerDone
+				<-done
+				mu.Lock()
+				lastPipelineResult = result
+				mu.Unlock()
+				addLog("================================")
+				addLog("停止成功")
+				loadResults()
+				return
 			}
 		case <-scannerDone:
 			output := outBuf.String()
