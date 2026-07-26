@@ -642,8 +642,8 @@ function loadConfig() {
       document.querySelectorAll('#modeSeg .seg-btn').forEach(function(b) {
         b.classList.toggle('active', b.dataset.mode === saved.mode);
       });
-      updateModeFields();
     }
+    updateModeFields();
     updateToggleUI();
   } catch(e) {}
 }
