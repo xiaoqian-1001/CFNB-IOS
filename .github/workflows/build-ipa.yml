@@ -33,15 +33,19 @@ jobs:
           CGO_ENABLED=1 GOOS=ios GOARCH=arm64 \
             CC="$CLANG -arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=16.0" \
             CGO_CFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=16.0" \
-            go build -buildmode=c-archive -tags ios -o "${{ github.workspace }}/libcfnb.a" ./cmd/server/ 2>&1 || echo "WARNING: c-archive build failed"
+            CGO_LDFLAGS="-arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=16.0 -lsqlite3" \
+            go build -buildmode=c-archive -tags ios -ldflags="-s -w" \
+            -o "${{ github.workspace }}/libcfnb.a" ./cmd/server/ 2>&1 || { echo "c-archive build failed"; ls -la "${{ github.workspace }}/"*.a 2>/dev/null; exit 1; }
           
+          echo "=== Checking artifacts ==="
           ls -lh "${{ github.workspace }}/libcfnb.a" 2>/dev/null || echo "libcfnb.a not generated"
           ls -lh "${{ github.workspace }}/libcfnb.h" 2>/dev/null || echo "libcfnb.h not generated"
-      
+          
       - name: Build and link ObjC app with Go library
         run: |
           cd ${{ github.workspace }}
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          INSTALL_NAME_TOOL=$(xcrun --sdk iphoneos --find install_name_tool)
           
           if [ ! -f libcfnb.a ] || [ ! -f libcfnb.h ]; then
             echo "ERROR: libcfnb.a or libcfnb.h not found. c-archive build failed."
@@ -51,7 +55,9 @@ jobs:
           cat > main.mm << 'OBJCEOF'
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
+          extern "C" {
           #include "libcfnb.h"
+          }
 
           @interface WebViewController : UIViewController
           @property (strong, nonatomic) WKWebView *webView;
@@ -141,11 +147,12 @@ jobs:
           }
           OBJCEOF
 
-          clang -arch arm64 -isysroot "$SDK_PATH" -miphoneos-version-min=16.0 \
+          clang++ -arch arm64 -isysroot "$SDK_PATH" -miphoneos-version-min=16.0 \
             -framework UIKit -framework WebKit -framework Foundation \
             -framework CoreFoundation -framework Security -framework CFNetwork \
-            -fobjc-arc -I. -o CFNB main.mm libcfnb.a -lstdc++
-
+            -lc++ -lsqlite3 \
+            -fobjc-arc -I. -o CFNB main.mm libcfnb.a >clang-link.log 2>&1 || { echo "=== CLANG LINKING FAILED ==="; cat clang-link.log; exit 1; }
+          
           echo "App binary: $(ls -lh CFNB)"
       
       - name: Create app bundle and IPA
