@@ -764,6 +764,7 @@ function importIPFile() {
       S('cfgDirectIPs').value = lines.join('\n');
       saveConfig();
       updateDirectIPCount();
+      showToast('已导入 ' + lines.length + ' 条');
     };
     reader.readAsText(file);
   };
@@ -779,6 +780,7 @@ function pasteDirectIPs() {
     ta.value = text;
     saveConfig();
     updateDirectIPCount();
+    showToast('已粘贴 ' + text.split('\n').filter(function(s) { return s.trim(); }).length + ' 条');
   }).catch(function() {
     showToast('无法读取剪贴板');
   });
@@ -882,10 +884,11 @@ function startPipeline() {
     dnsBlacklistFilter: S('cfgDNSBlacklist').checked,
     dnsRiskMaxLevel: S('cfgRiskLevel').value
   };
+  showToast('正在启动扫描...');
   fetch('/api/run', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(cfg) })
     .then(function(r) { return r.json(); })
-    .then(function(d) { if (!d.ok) alert('管道正在运行中'); })
-    .catch(function(e) { alert('启动失败: ' + e); });
+    .then(function(d) { if (!d.ok) showToast('管道正在运行中'); })
+    .catch(function(e) { showToast('启动失败: ' + e); });
 }
 
 function stopPipeline() {
@@ -900,11 +903,11 @@ function stopPipeline() {
     .then(function(r) { return r.json(); })
     .then(function(d) {
       clearTimeout(forceTimer);
-      if (!d.ok) { alert(d.msg); btn.disabled = false; }
+      if (!d.ok) { showToast(d.msg); btn.disabled = false; }
     })
     .catch(function(e) {
       clearTimeout(forceTimer);
-      alert('终止失败: ' + e);
+      showToast('终止失败: ' + e);
       btn.disabled = false;
     });
 }
@@ -944,6 +947,7 @@ function updateUI(s) {
     scanStart = 0;
     setControlsDisabled(false);
     s.progress = '完成';
+    showToast('扫描完成');
     saveHistory(s.results);
     switchTab('history');
   } else {
@@ -964,6 +968,7 @@ function resetToIdle() {
   S('logPanelWrap').style.display = 'none';
   S('scanTimer').textContent = '--';
   S('logPanel').innerHTML = '';
+  showToast('已停止');
 }
 
 function startTimer() {
@@ -1055,7 +1060,9 @@ function renderResults(nodes) {
 }
 
 function copySingleIP(ip) {
-  navigator.clipboard.writeText(ip).then(function() {}).catch(function() {});
+  navigator.clipboard.writeText(ip).then(function() {
+    showToast('已复制 IP');
+  }).catch(function() {});
 }
 
 function copyAllIPs() {
