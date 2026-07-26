@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>CFNB - Cloudflare IP 优选</title>
+<style>
+:root{--bg:#121212;--glass-bg:rgba(30,34,41,0.68);--glass-border:rgba(255,255,255,0.06);--glass-shadow:0 2px 24px rgba(0,0,0,0.35),0 0 0 0.5px rgba(255,255,255,0.04);--primary:#0077ED;--danger:#F23838;--success:#34C759;--orange:#FF9500;--text:#FFFFFF;--label:#8A919E;--secondary:#8A919E;--muted:#636366;--input-bg:rgba(118,118,128,0.20);--segment-bg:rgba(118,118,128,0.18);--tabbar-bg:rgba(18,20,25,0.80);--tabbar-border:rgba(255,255,255,0.08);--nav-bg:rgba(18,20,25,0.80);--progress-track:rgba(118,118,128,0.20);--radius-card:22px;--radius-btn:18px;--radius-input:12px;--radius-seg:10pt;--ease-out:cubic-bezier(0.23,1,0.32,1);--ease-spring:cubic-bezier(0.34,1.56,0.64,1);--ease-smooth:cubic-bezier(0.25,0.1,0.25,1);--material-thick:rgba(30,34,41,0.88);--material-regular:rgba(30,34,41,0.68);--material-thin:rgba(30,34,41,0.48);--muted2:#8A919E}
+[data-theme="light"]{--bg:#F8F8FA;--glass-bg:rgba(255,255,255,0.72);--glass-border:rgba(0,0,0,0.06);--glass-shadow:0 2px 20px rgba(0,0,0,0.04),0 0 0 0.5px rgba(0,0,0,0.02);--primary:#0077ED;--danger:#E63832;--success:#34C759;--orange:#FF9500;--text:#1C1C1E;--label:#6E6E73;--secondary:#8E8E93;--muted:#C7C7CC;--input-bg:rgba(118,118,128,0.10);--segment-bg:rgba(118,118,128,0.10);--tabbar-bg:rgba(248,248,250,0.82);--tabbar-border:rgba(0,0,0,0.08);--nav-bg:rgba(248,248,250,0.82);--progress-track:rgba(118,118,128,0.12);--material-thick:rgba(255,255,255,0.88);--material-regular:rgba(255,255,255,0.72);--material-thin:rgba(255,255,255,0.48);--muted2:#8E8E93}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','SF Pro',sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;min-height:100vh;min-height:100dvh;overflow-x:hidden;touch-action:manipulation;transition:background .35s ease,color .25s ease}
+
+.top-nav{position:sticky;top:0;z-index:50;padding:8pt 14pt;padding-top:calc(env(safe-area-inset-top) + 20pt);padding-bottom:16pt;background:var(--nav-bg);backdrop-filter:blur(30px) saturate(200%);-webkit-backdrop-filter:blur(30px) saturate(200%);border-bottom:0.5px solid var(--glass-border);text-align:center;transition:padding .4s cubic-bezier(0.34,1.56,0.64,1)}
+.top-nav.compact{padding-top:calc(env(safe-area-inset-top) + 8pt);padding-bottom:8pt}
+
+.nav-title{font-size:23px;font-weight:700;letter-spacing:1px;color:var(--text);transition:font-size .4s var(--ease-spring),letter-spacing .4s var(--ease-spring);font-family:'Space Grotesk',sans-serif}
+.top-nav.compact .nav-title{font-size:16px;letter-spacing:0.3px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',sans-serif}
+
+.nav-sub{font-size:14px;font-weight:400;color:var(--secondary);letter-spacing:-0.1px;margin-top:8pt;transition:opacity .25s var(--ease-out),max-height .25s var(--ease-out),margin .25s var(--ease-out);overflow:hidden;max-height:36pt}
+.top-nav.compact .nav-sub{opacity:0;max-height:0;margin-top:0}
+
+.glass-card{background:var(--glass-bg);backdrop-filter:blur(20px) saturate(200%);-webkit-backdrop-filter:blur(20px) saturate(200%);border:0.5px solid var(--glass-border);border-radius:var(--radius-card);padding:24px 20px;margin-bottom:28px;box-shadow:var(--glass-shadow);transition:transform .4s var(--ease-spring),opacity .3s ease,background .3s ease;will-change:transform}
+.glass-card:active{transform:scale(0.997)}
+.glass-card.material-thick{background:var(--material-thick)}
+.glass-card.material-regular{background:var(--material-regular)}
+.glass-card.material-thin{background:var(--material-thin)}
+.glass-card.entering{animation:materialize .4s var(--ease-spring) both}
+@keyframes materialize{from{opacity:0;transform:translateY(8px) scale(0.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+.card-title{font-size:16px;font-weight:600;letter-spacing:-0.2px;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:4pt}
+
+.page-content{padding:14px 14px;padding-bottom:calc(env(safe-area-inset-bottom) + 80px);max-width:380pt;margin:0 auto;position:relative}
+
+.tab-content{display:none!important;opacity:0}
+.tab-content.active{display:block!important;opacity:1}
+
+.bottom-row{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 10pt);left:50%;transform:translateX(-50%);z-index:100;display:flex;align-items:center;gap:6pt}
+.tab-bar{background:var(--tabbar-bg);backdrop-filter:blur(26px) saturate(200%);-webkit-backdrop-filter:blur(26px) saturate(200%);border:0.5px solid var(--tabbar-border);padding:4pt 6pt;display:flex;justify-content:space-around;align-items:center;border-radius:28pt;box-shadow:0 4px 24px rgba(0,0,0,0.08);gap:2pt;min-width:200pt}
+.tab-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:1pt;border:none;background:transparent;color:var(--secondary);cursor:pointer;padding:5pt 10pt;font-family:inherit;transition:transform .12s ease-out,color .15s ease,background .2s ease;border-radius:22pt;white-space:nowrap}
+.tab-item.active,.tab-item:active{color:var(--primary)}
+.tab-item.active{background:var(--input-bg)}
+.tab-item:active{transform:scale(0.93)}
+.tab-item svg{width:18pt;height:18pt;display:block;transition:transform .12s ease-out}
+.tab-item:active svg{transform:scale(0.93)}
+.tab-item .tab-label{font-size:10px;font-weight:500;letter-spacing:0.2px}
+.tab-item.active .tab-label{color:var(--primary)}
+
+.segmented{display:flex;background:var(--segment-bg);backdrop-filter:blur(10px) saturate(200%);-webkit-backdrop-filter:blur(10px) saturate(200%);border-radius:var(--radius-seg);padding:2pt;gap:2pt;height:48px}
+
+.seg-btn{flex:1;min-width:0;padding:0 6pt;border:none;border-radius:8pt;background:transparent;color:var(--secondary);font-size:13px;font-weight:500;cursor:pointer;transition:background .35s var(--ease-spring),color .25s ease,box-shadow .25s ease;font-family:inherit;line-height:1.3;letter-spacing:-0.1px;will-change:transform;height:100%;white-space:nowrap;text-align:center}
+.seg-btn:active{transform:scale(0.95)}
+.seg-btn.active{background:var(--primary);color:#FFFFFF;font-weight:600;box-shadow:0 2px 8px rgba(0,119,237,0.28)}
+[data-theme="dark"] .seg-btn.active{box-shadow:0 2px 8px rgba(0,119,237,0.28)}
+
+.field{margin-bottom:8px;width:100%}
+.field:last-child{margin-bottom:0}
+.field label{display:block;font-size:13px;font-weight:400;color:var(--label);margin-bottom:4px;letter-spacing:-0.1px}
+.field input,.field select{width:100%;height:48px;padding:0 14px;background:var(--input-bg);border:0.5px solid transparent;border-radius:var(--radius-input);color:var(--text);font-size:14px;font-weight:500;outline:none;transition:border-color .2s ease,box-shadow .2s ease;font-family:inherit;-webkit-appearance:none;appearance:none;box-sizing:border-box;min-width:0}
+.field input[type=number]{text-align:left;font-variant-numeric:tabular-nums}
+.field select{background-image:url("data:image/svg+xml,%3Csvg width='9' height='5' fill='%238E8E93' viewBox='0 0 9 5'%3E%3Cpath d='M1 1l3.5 3L8 1'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:32px;font-weight:500;color:var(--text)}
+.field input:focus,.field select:focus{border-color:var(--primary);box-shadow:0 0 0 4px rgba(0,119,237,0.15)}
+[data-theme="dark"] .field input:focus,[data-theme="dark"] .field select:focus{box-shadow:0 0 0 4px rgba(0,119,237,0.15)}
+.field input::placeholder,.field textarea::placeholder{color:var(--muted);opacity:0.6}
+.field input[type=number]::-webkit-inner-spin-button,.field input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.field input:disabled,.field select:disabled{opacity:0.4;cursor:not-allowed}
+textarea{width:100%;min-height:48px;padding:10px 14px;background:var(--input-bg);border:0.5px solid transparent;border-radius:var(--radius-input);color:var(--text);font-size:13px;font-family:'SF Mono',ui-monospace,monospace;resize:vertical;outline:none;line-height:1.5;transition:all .2s}
+textarea:focus{border-color:var(--primary);box-shadow:0 0 0 4px rgba(0,119,237,0.15)}
+[data-theme="dark"] textarea:focus{box-shadow:0 0 0 4px rgba(0,119,237,0.15)}
+textarea:disabled{opacity:0.4;cursor:not-allowed}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;width:100%}
+.row .field{margin-bottom:0}
+
+.btn{display:flex;align-items:center;justify-content:center;gap:4pt;border:none;border-radius:var(--radius-btn);font-size:16px;font-weight:600;cursor:pointer;transition:transform .35s var(--ease-spring),opacity .25s ease,background .25s ease;font-family:inherit;height:56px;width:100%;margin:0;letter-spacing:0.1px;will-change:transform}
+.btn-primary{background:var(--primary);color:#FFFFFF;box-shadow:0 4px 14px rgba(0,119,237,0.28)}
+[data-theme="dark"] .btn-primary{box-shadow:0 4px 14px rgba(0,119,237,0.28)}
+.btn-primary:active{transform:scale(0.97);opacity:0.85;transition:transform .1s var(--ease-out),opacity .1s ease}
+.btn-primary:disabled{opacity:0.3;cursor:not-allowed;box-shadow:none;transform:none}
+.btn-running{background:var(--danger);color:#FFFFFF;box-shadow:0 4px 14px rgba(230,56,50,0.28)}
+.btn-running:active{transform:scale(0.97);opacity:0.85}
+@keyframes spin{to{transform:rotate(360deg)}}
+.btn-spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#FFF;border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0}
+.btn-spacer{margin-bottom:28px}
+.history-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8pt;padding:0}
+.history-header .count{font-size:12px;color:var(--muted2)}
+.history-header .clear-btn{font-size:12px;color:#FFFFFF;cursor:pointer;background:var(--danger);border:none;font-family:inherit;font-weight:500;padding:5pt 16pt;border-radius:18pt;transition:transform .12s var(--ease-out),opacity .15s ease}
+.history-header .clear-btn:active{transform:scale(0.94);opacity:0.85}
+
+.local-grid{display:flex;flex-direction:column;justify-content:flex-start;gap:4pt;flex:1}
+.local-grid{display:flex;flex-direction:column;width:100%}
+.local-row{display:flex;align-items:center;justify-content:space-between;height:40pt;padding:0 16pt;border-bottom:0.5px solid var(--glass-border);gap:6pt}
+.local-row:last-child{border-bottom:none}
+.local-row .local-label{font-size:13px;color:var(--label);letter-spacing:-0.1px;flex-shrink:0;min-width:48pt;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.local-row .local-val{font-size:14px;font-weight:500;color:var(--text);letter-spacing:-0.2px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.local-row .local-val.public{color:var(--primary);font-weight:600}.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0;min-height:20pt}
+.card-header .card-title{margin-bottom:0}
+#localIPCard{padding:20pt 16pt;border-radius:var(--radius-card);height:260pt;display:flex;flex-direction:column}
+.btn-text{height:26pt;padding:0 8pt;border-radius:13pt;border:0.5px solid var(--glass-border);background:var(--input-bg);color:var(--muted2);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;transition:transform .12s var(--ease-out),color .15s ease,background .15s ease;flex-shrink:0;font-family:inherit;gap:3pt}
+.btn-text:active{color:var(--primary);background:rgba(0,119,237,0.10);transform:scale(0.93)}
+.btn-text.danger{color:var(--danger)}
+.btn-text.danger:active{color:var(--danger);background:rgba(255,95,87,0.10)}
+.btn-text:disabled{opacity:0.4;cursor:not-allowed}
+
+.section{border-top:0.5px solid var(--glass-border);padding-top:12px;margin-bottom:12px;width:100%}
+.section:first-child{border-top:none;padding-top:0}
+.section:last-child{margin-bottom:0}
+.section-title{font-size:11px;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px;padding-top:2px}
+
+.toggle-wrap{position:relative;width:40pt;height:24pt;flex-shrink:0;margin-left:10pt}
+.sl-right .toggle-wrap{margin-left:0}
+.toggle-track{position:absolute;top:0;left:0;right:0;bottom:0;border-radius:12pt;background:var(--muted);cursor:pointer;transition:background .35s var(--ease-smooth)}
+.toggle-track.on{background:var(--primary)}
+.toggle-knob{position:absolute;top:2pt;left:2pt;width:20pt;height:20pt;border-radius:10pt;background:#FFF;box-shadow:0 1px 4px rgba(0,0,0,0.15);transition:transform .45s var(--ease-spring);cursor:pointer}
+.toggle-track.on .toggle-knob{transform:translateX(16pt)}
+.toggle-input{position:absolute;opacity:0;width:100%;height:100%;cursor:pointer;z-index:2}
+.toggle-track.disabled{opacity:0.4}
+
+.status-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6pt;margin-bottom:0}
+.stat-item{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;height:50pt;padding:0 10pt;background:var(--input-bg);border-radius:10pt;box-sizing:border-box;border:0.5px solid transparent}
+.stat-val{font-size:16pt;font-weight:700;color:var(--text);line-height:1.2;letter-spacing:-0.3px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.stat-val.brand{color:var(--primary)}
+.stat-val.green{color:var(--success)}
+.stat-val.orange{color:var(--orange)}
+.stat-val.red{color:var(--danger)}
+.stat-lbl{font-size:10px;color:var(--muted2);margin-top:4pt;letter-spacing:-0.1px}
+
+.log-panel{max-height:200pt;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4pt 0;scrollbar-width:thin;scrollbar-color:var(--muted) transparent}
+.log-panel::-webkit-scrollbar{width:3px}
+.log-panel::-webkit-scrollbar-track{background:transparent}
+.log-panel::-webkit-scrollbar-thumb{background:var(--muted);border-radius:3px;min-height:20pt}
+.log-line{font-family:'SF Mono',ui-monospace,monospace;font-size:10px;padding:2pt 0;color:var(--secondary);line-height:1.5;word-break:break-all;border-bottom:0.5px solid rgba(60,60,60,0.04)}
+.log-line:last-child{border-bottom:none}
+.log-line.info{color:var(--primary)}
+.log-line.success{color:var(--success)}
+.log-line.warn{color:var(--orange)}
+.log-line.error{color:var(--danger)}
+
+.result-list{display:flex;flex-direction:column;gap:10px;padding:4pt 0}
+.result-item{display:flex;flex-direction:column;gap:6px;padding:14px 16px;background:var(--input-bg);border-radius:14px;transition:border-color .2s,transform .2s ease,box-shadow .2s ease;border:0.5px solid transparent;position:relative;overflow:hidden}
+.result-item:active{transform:scale(0.98)}
+.result-item .ri-top{display:flex;align-items:center;justify-content:space-between;gap:4pt}
+.result-item .ri-rank{font-size:10px;color:var(--muted2);font-weight:600;min-width:18pt;letter-spacing:0.3px;background:var(--segment-bg);padding:2pt 6pt;border-radius:6pt;text-align:center;flex-shrink:0}
+.result-item .ri-ip{font-family:'SF Mono',ui-monospace,monospace;font-size:14px;font-weight:600;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-0.2px;cursor:pointer}
+.result-item .ri-ip:active{opacity:0.6}
+.result-item .ri-port{font-size:10px;color:var(--orange);font-weight:600;margin-left:auto;background:rgba(255,149,0,0.10);padding:1pt 6pt;border-radius:6pt;flex-shrink:0}
+.result-item .ri-meta{display:grid;grid-template-columns:1fr 1fr;gap:3pt 10pt;margin-top:1pt}
+.result-item .ri-m{font-size:11px;color:var(--label);display:flex;align-items:center;gap:3px;padding:2pt 0}
+.result-item .ri-m span{color:var(--muted2);min-width:28pt;font-size:10px}
+.result-item .ri-m strong{font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+.result-item .ri-m .green{color:var(--success)}
+.result-item .ri-m .brand{color:var(--primary)}
+.result-item .ri-m .orange{color:var(--orange)}
+.result-item .ri-m .amber{color:#FFB340}
+.result-item .ri-m .purple{color:#AF52DE}
+.result-item .ri-m .red{color:var(--danger)}
+.result-item .ri-colo{font-size:10px;color:var(--muted2);margin-top:1pt;display:inline-flex;align-items:center;gap:3pt;background:var(--segment-bg);padding:2pt 8pt;border-radius:6pt;align-self:flex-start}
+.result-item .ri-bw{display:flex;align-items:center;gap:6pt;margin-top:1pt;background:rgba(118,118,128,0.03);padding:4pt 6pt;border-radius:8pt}
+.result-item .ri-bw-bar{flex:1;height:5px;background:var(--progress-track);border-radius:3px;overflow:hidden}
+.result-item .ri-bw-fill{height:100%;border-radius:3px;width:0%;transition:width .6s var(--ease-smooth)}
+.result-item .ri-bw-fill.green{background:var(--success)}
+.result-item .ri-bw-fill.orange{background:var(--orange)}
+.result-item .ri-bw-fill.purple{background:#AF52DE}
+.result-item .ri-bw-fill.amber{background:#FFB340}
+.result-item .ri-bw-fill.red{background:var(--danger)}
+.result-item .ri-bw-val{font-size:10px;font-weight:600;font-family:'SF Mono',ui-monospace,monospace;min-width:52pt;text-align:right;font-variant-numeric:tabular-nums}
+.result-item .ri-bw-val.green{color:var(--success)}
+.result-item .ri-bw-val.brand{color:var(--primary)}
+.result-item .ri-bw-val.orange{color:var(--orange)}
+.result-item .ri-bw-val.purple{color:#AF52DE}
+.result-item .ri-bw-val.amber{color:#FFB340}
+.result-item .ri-bw-val.red{color:var(--danger)}
+
+.empty-state{text-align:center;padding:48px 14px;color:var(--muted2)}
+.empty-state svg{width:56px;height:56px;display:block;margin:0 auto 16px;color:var(--muted);opacity:0.4}
+.empty-state .empty-title{font-size:17px;font-weight:400;color:var(--secondary);margin-bottom:6px}
+.empty-state .empty-desc{font-size:14px;color:var(--muted2);line-height:1.5;max-width:220px;margin:0 auto}
+
+.history-list{display:flex;flex-direction:column;gap:12pt}
+.history-item{border-radius:14pt!important;padding:16pt}
+.history-item-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4pt}
+.history-item .h-time{font-size:11px;color:var(--muted2)}
+.history-item .ip{font-size:19px;font-weight:650;color:var(--primary);cursor:pointer;font-family:'SF Mono',ui-monospace,monospace;letter-spacing:-0.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;margin-bottom:6pt;user-select:none}
+.history-metrics{display:flex;flex-direction:column;gap:3pt;margin-bottom:3pt}
+.history-metrics .hm-row{display:grid;grid-template-columns:1fr 1fr;gap:4pt 12pt;position:relative}
+.history-metrics .hm-row::after{content:'';position:absolute;left:50%;top:0;bottom:0;width:0.5px;background:var(--glass-border)}
+.history-metrics .hm{font-size:12px;color:var(--label);letter-spacing:-0.1px;line-height:1.4;display:flex;gap:2px}
+.history-metrics .hm strong{font-weight:590;color:var(--text)}
+.history-metrics .hm .ok{color:var(--success)}
+.history-metrics .hm .mid{color:#FF9500}
+.history-metrics .hm .red{color:var(--danger)}
+.history-metrics .hm .fail{color:var(--muted2)}
+.h-expand-bar{margin-top:6pt;padding-top:6pt;border-top:0.5px solid var(--glass-border);display:flex;gap:2pt}
+.h-expand-bar .segmented{height:32px;margin-bottom:0;flex:1}
+.h-expand-bar .segmented .seg-btn{font-size:11px;padding:0 4pt}
+.h-detail{padding-top:6pt;display:flex;flex-direction:column;gap:6pt}
+.h-detail-card{padding:10pt 12pt;border-radius:12pt!important;margin-bottom:0}
+.h-detail-card .ip{font-size:14px;font-weight:600;margin-bottom:4pt;text-align:center}
+.h-detail-card .hm-row{display:grid;grid-template-columns:1fr 1fr;gap:2pt 8pt;position:relative}
+.h-detail-card .hm-row::after{content:'';position:absolute;left:50%;top:0;bottom:0;width:0.5px;background:var(--glass-border)}
+.h-detail-card .hm{font-size:11px;color:var(--label);letter-spacing:-0.1px;line-height:1.3;display:flex;gap:2px}
+.h-detail-card .hm strong{font-weight:590;color:var(--text);font-size:11px}
+.h-detail-card .hm .ok{color:var(--success)}
+.h-detail-card .hm .mid{color:#FF9500}
+.h-detail-card .hm .red{color:var(--danger)}
+.h-detail-card .hm .fail{color:var(--muted2)}
+.stagger-enter{opacity:0;transform:translateY(8px)}
+.stagger-enter.enter{opacity:1;transform:translateY(0);transition:opacity .35s var(--ease-out),transform .35s var(--ease-out)}
+.history-item .h-delete{background:none;border:none;color:var(--muted2);cursor:pointer;padding:2pt;font-family:inherit;display:flex;align-items:center;border-radius:6pt;transition:color .15s,background .15s;flex-shrink:0}
+.history-item .h-delete:hover{color:var(--danger);background:rgba(255,95,87,0.10)}
+.history-item .h-delete:active{transform:scale(0.9)}
+
+.settings-row{display:flex;align-items:center;justify-content:space-between;padding:10px 2px;min-height:44px}
+.settings-row:first-child{padding-top:0}
+.settings-row:last-child{padding-bottom:0}
+.settings-row .sl-label{font-size:14px;font-weight:400;color:var(--text);display:flex;flex-direction:column;gap:1pt}
+.settings-row .sl-desc{font-size:11px;color:var(--muted2);font-weight:400}
+.settings-row .sl-right{display:flex;align-items:center;gap:8pt;flex-shrink:0}
+.toggle-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px 16pt;border-top:none;padding-top:0}
+.toggle-grid .settings-row{border-bottom:0.5px solid rgba(60,60,60,0.08);padding:8px 0;min-height:36px}
+.toggle-grid .settings-row:last-child{border-bottom:none}
+.toggle-grid .settings-row .sl-label{font-size:13px;font-weight:400;color:var(--text)}
+.cfg-select{background:var(--card-bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:4pt 8pt;font-size:13px;font-family:inherit;outline:none;cursor:pointer;min-width:90px}
+.cfg-select:disabled{opacity:0.4;cursor:not-allowed}
+.field-disabled input{opacity:0.35;cursor:not-allowed}
+.field-disabled label{opacity:0.35}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{animation:fadeIn .35s ease both}
+
+@media (hover: hover) and (pointer: fine){
+  .seg-btn:hover{background:rgba(118,118,128,0.06)}
+  .tab-item:hover{background:rgba(118,118,128,0.06)}
+  .btn-text:hover{color:var(--primary);background:rgba(0,119,237,0.10)}
+  .glass-card:hover{background:var(--material-thick);transition:background .2s ease}
+  .result-item:hover{background:rgba(118,118,128,0.06);border-color:rgba(0,119,237,0.08)}
+  .history-item .h-ip-row:hover{color:var(--primary)}
+}
+.settings-group{border-top:0.5px solid var(--glass-border);padding-top:10pt;margin-bottom:10pt;width:100%}
+.settings-group:first-child{border-top:none;padding-top:0}
+.settings-group:last-child{margin-bottom:0}
+.settings-group .sg-title{font-size:12px;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6pt;padding:0 2pt}
+.settings-row .repo-link{color:var(--primary);text-decoration:none;font-size:14px;cursor:pointer}
+.settings-row .repo-link:hover{text-decoration:underline}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:0.01ms!important;animation-iteration-count:1!important;transition-duration:0.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<div class="top-nav" id="topNav">
+<div class="nav-title">Qian's Loot-Box</div>
+<div class="nav-sub">高宽之网、低延之址，可遇而不可强求</div>
+</div>
+
+<div class="page-content" id="pageContent">
+
+<div class="tab-content active" id="tab-scan" style="display:block">
+
+<div class="glass-card material-regular" id="localIPCard">
+<div class="card-header">
+<div class="card-title">本地网络</div>
+<button type="button" class="btn-text" onclick="fetchLocalIP()">刷新</button>
+</div>
+<div style="border-top:0.5px solid var(--glass-border);margin:8pt 0 6pt 0"></div>
+<div class="local-grid" id="localInfo">
+<div class="local-row" onclick="copyText(document.getElementById('liPublic').textContent)" style="cursor:pointer;-webkit-tap-highlight-color:transparent"><span class="local-label">公网IP</span><span class="local-val public" id="liPublic">--</span></div>
+<div class="local-row"><span class="local-label">本地IP</span><span class="local-val" id="liLocal">--</span></div>
+<div class="local-row"><span class="local-label">运营商</span><span class="local-val" id="liISP">--</span></div>
+<div class="local-row"><span class="local-label">位置</span><span class="local-val" id="liLocation">--</span></div>
+</div>
+</div>
+
+<div class="glass-card material-thick">
+<div class="card-title">参数配置</div>
+<div class="section">
+<div class="segmented" id="modeSeg" style="height:36px">
+<button class="seg-btn active" data-mode="global">全局最优</button>
+<button class="seg-btn" data-mode="percountry">按国家最优</button>
+</div>
+</div>
+<div class="section">
+<div class="row">
+<div class="field"><label>测速文件</label>
+<select id="cfgBandwidthSize"><option value="1">1 MB</option><option value="5">5 MB</option><option value="10">10 MB</option><option value="25">25 MB</option><option value="50">50 MB</option><option value="100">100 MB</option></select>
+</div>
+<div class="field"><label>候选数</label><input type="number" id="cfgCandidates" value="150" min="10" max="500"></div>
+</div>
+<div class="row" style="margin-top:8px">
+<div class="field" id="globalTopNRow"><label>全局保留</label><input type="number" id="cfgGlobalTopN" value="15" min="1" max="100"></div>
+<div class="field" id="perCountryTopNRow"><label>每国保留</label><input type="number" id="cfgPerCountryTopN" value="1" min="1" max="50"></div>
+</div>
+</div>
+<div class="section">
+<div class="field" id="portFilterSection">
+<label>过滤端口（逗号分隔）</label>
+<input type="text" id="cfgPorts" value="443">
+</div>
+<div class="field" id="blockCountrySection" style="margin-top:8px">
+<label>屏蔽国家代码（逗号分隔）</label>
+<input type="text" id="cfgBlockedCountries" value="CN">
+</div>
+</div>
+<div class="section">
+<div class="settings-row" style="padding-top:0">
+<div class="sl-label">数据源模式</div>
+<div class="sl-right">
+<div class="toggle-wrap">
+<div class="toggle-track" id="dsTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="cfgUseDirectIP"></div>
+</div>
+</div>
+</div>
+<div id="urlSourceSection" class="field" style="margin-top:6px">
+<label>数据源URL | 单行单链接</label>
+<textarea id="cfgSources" rows="2" style="min-height:50pt">https://zip.cm.edu.kg/all.txt</textarea>
+</div>
+<div id="directIPSection" style="display:none;margin-top:6px">
+<div class="field">
+<label style="display:flex;justify-content:space-between;align-items:center">
+<span>IP地址及端口 | 单行单条</span>
+<span style="font-size:11px;color:var(--muted2)" id="directIPCount">0 条</span>
+</label>
+<div style="display:flex;gap:4pt;margin-bottom:4px">
+<button class="btn-text" onclick="importIPFile()">导入文件</button>
+<button class="btn-text" onclick="pasteDirectIPs()">粘贴信息</button>
+<button class="btn-text" onclick="document.getElementById('cfgDirectIPs').value='';saveConfig();updateDirectIPCount()">清空列表</button>
+</div>
+</div>
+<textarea id="cfgDirectIPs" rows="4" style="min-height:80pt" placeholder="1.1.1.1:443&#10;1.0.0.1:443" oninput="updateDirectIPCount()"></textarea>
+</div>
+</div>
+</div>
+
+<div class="btn-spacer">
+<button class="btn btn-primary" id="actionBtn" onclick="toggleScan()">开始测速</button>
+</div>
+
+<div class="glass-card material-thin" id="logPanelWrap" style="display:none">
+<div class="card-title" style="justify-content:space-between;margin-bottom:6pt">
+<span>扫描日志</span>
+<span style="font-size:11px;color:var(--muted2);font-family:'SF Mono',ui-monospace,monospace" id="scanTimer">--</span>
+</div>
+<div class="log-panel" id="logPanel"></div>
+</div>
+
+<div class="glass-card material-regular" id="resultsPanel" style="display:none">
+<div class="card-title" style="justify-content:space-between">
+<span>优选节点</span>
+<button class="btn-text" onclick="copyAllIPs()" id="copyBtn">复制</button>
+</div>
+<div class="status-grid" style="margin-bottom:8pt" id="statsCards">
+<div class="stat-item"><div class="stat-val brand" id="statNodes">-</div><div class="stat-lbl">总节点</div></div>
+<div class="stat-item"><div class="stat-val" id="statBW">-</div><div class="stat-lbl">总带宽</div></div>
+<div class="stat-item"><div class="stat-val green" id="statLatency">-</div><div class="stat-lbl">平均延迟</div></div>
+</div>
+<div class="field" style="margin-bottom:8px">
+<input type="text" id="filterInput" placeholder="搜索国家或 IP...">
+</div>
+<div id="resultList" class="result-list"></div>
+</div>
+
+</div>
+
+<div class="tab-content" id="tab-history" style="display:none">
+<div class="glass-card material-regular">
+<div class="card-title">扫描历史</div>
+<div style="border-top:0.5px solid var(--glass-border);margin:8pt 0 6pt 0"></div>
+<div class="history-header">
+<span class="count" id="historyCount">0 条记录</span>
+<button class="clear-btn" onclick="clearHistory()" id="clearHistoryBtn" style="display:none">清空</button>
+</div>
+<div class="history-list" id="historyList">
+<div class="empty-state">
+<svg viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="40" cy="40" r="28"/><polyline points="40 28 40 40 48 48"/><path d="M28 16l-8 8M52 16l8 8"/></svg>
+<div class="empty-title">暂无扫描记录</div>
+<div class="empty-desc">完成一次扫描后，结果将出现在这里</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="tab-content" id="tab-settings" style="display:none">
+<div class="glass-card material-regular">
+<div class="card-title">设置</div>
+<div class="section">
+<div class="settings-row">
+<div class="sl-label">深色模式</div>
+<div class="sl-right">
+<div class="segmented" style="margin-bottom:0;height:36px;width:280px">
+<button class="seg-btn" data-theme="system" onclick="setTheme('system')">跟随系统</button>
+<button class="seg-btn" data-theme="light" onclick="setTheme('light')">明亮模式</button>
+<button class="seg-btn" data-theme="dark" onclick="setTheme('dark')">暗黑模式</button>
+</div>
+</div>
+</div>
+</div>
+<div class="section">
+<div class="section-title">探测参数</div>
+<div class="row">
+<div class="field"><label>TCP 探测</label><input type="number" id="cfgTCPProbes" value="1" min="1" max="10"></div>
+<div class="field"><label>TCP 并发</label><input type="number" id="cfgTCPWorkers" value="300" min="10" max="1000"></div>
+</div>
+<div class="row" style="margin-top:8px">
+<div class="field"><label>TCP 超时(s)</label><input type="number" id="cfgTCPTimeout" value="3" min="1" max="30" step="0.5"></div>
+<div class="field"><label>测速并发</label><input type="number" id="cfgBWWorkers" value="3" min="1" max="50"></div>
+</div>
+<div class="row" style="margin-top:8px">
+<div class="field"><label>测速超时(s)</label><input type="number" id="cfgBWTimeout" value="3" min="1" max="30" step="0.5"></div>
+<div class="field"><label>最低成功率</label><input type="number" id="cfgMinSuccessRate" value="100" min="1" max="100"></div>
+</div>
+</div>
+<div class="section" style="margin-bottom:0;padding-top:8px">
+<div class="settings-row" style="padding-top:0">
+<div class="sl-label">重置配置</div>
+<div class="sl-right">
+<button class="btn-text" onclick="resetConfig()" style="height:30pt;padding:0 14pt;font-size:11px">重置</button>
+</div>
+</div>
+</div>
+</div>
+<div class="glass-card material-regular">
+<div class="card-title">筛选开关</div>
+<div style="border-top:0.5px solid var(--glass-border);margin:8pt 0 6pt 0"></div>
+<div class="toggle-grid">
+<div class="settings-row">
+<div class="sl-label">可用性筛选</div>
+<div class="sl-right">
+<div class="toggle-wrap"><div class="toggle-track on" id="availTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="cfgAvailability" checked></div></div>
+</div>
+</div>
+<div class="settings-row">
+<div class="sl-label">HTTP 检测</div>
+<div class="sl-right">
+<div class="toggle-wrap"><div class="toggle-track on" id="httpTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="cfgHTTPTest" checked></div></div>
+</div>
+</div>
+<div class="settings-row">
+<div class="sl-label">端口过滤</div>
+<div class="sl-right">
+<div class="toggle-wrap"><div class="toggle-track on" id="portTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="cfgPortFilter" checked></div></div>
+</div>
+</div>
+<div class="settings-row">
+<div class="sl-label">屏蔽国家</div>
+<div class="sl-right">
+<div class="toggle-wrap"><div class="toggle-track on" id="blockTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="cfgBlockCountry" checked></div></div>
+</div>
+</div>
+<div class="settings-row">
+<div class="sl-label">DNS上传</div>
+<div class="sl-right">
+<div class="toggle-wrap"><div class="toggle-track" id="dnsTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="cfgCFEnabled"></div></div>
+</div>
+</div>
+<div class="settings-row">
+<div class="sl-label">GIT上传</div>
+<div class="sl-right">
+<div class="toggle-wrap"><div class="toggle-track" id="gitTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="cfgGitSync"></div></div>
+</div>
+</div>
+<div class="settings-row">
+<div class="sl-label">DNS 黑名单</div>
+<div class="sl-right">
+<div class="toggle-wrap"><div class="toggle-track" id="dnsBlacklistTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="cfgDNSBlacklist" onchange="toggleDNSBlacklist()"></div></div>
+</div>
+</div>
+<div class="settings-row">
+<div class="sl-label">风险等级</div>
+<div class="sl-right">
+<select id="cfgRiskLevel" class="cfg-select" onchange="saveConfig()">
+<option value="关闭">关闭</option>
+<option value="低风险">低风险</option>
+<option value="中风险">中风险</option>
+<option value="高风险">高风险</option>
+</select>
+</div>
+</div>
+</div>
+</div>
+<div class="glass-card material-regular" style="margin-bottom:16px">
+<div class="settings-group">
+<div class="sg-title">关于</div>
+<div style="border-top:0.5px solid var(--glass-border);margin:8pt 0 6pt 0"></div>
+<div class="settings-row">
+<div style="flex:1">
+<div class="sl-label">作者</div>
+</div>
+<div class="sl-desc">小钱</div>
+</div>
+<div class="settings-row">
+<div style="flex:1">
+<div class="sl-label">仓库</div>
+</div>
+<a class="sl-desc repo-link" href="https://github.com/xiaoqian-1001/CFNB-IOS" target="_blank">github.com/xiaoqian-1001/CFNB-IOS</a>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+
+<div class="bottom-row">
+<div class="tab-bar" id="tabBar">
+<button class="tab-item active" data-tab="scan" onclick="switchTab('scan')">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M8 11h6"/><path d="M11 8v6"/></svg>
+<span class="tab-label">扫描</span>
+</button>
+<button class="tab-item" data-tab="history" onclick="switchTab('history')">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+<span class="tab-label">历史</span>
+</button>
+<button class="tab-item" data-tab="settings" onclick="switchTab('settings')">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+<span class="tab-label">设置</span>
+</button>
+</div>
+</div>
+
+<script>
+var results = null;
+var running = false;
+var scanTimer = null;
+var scanStart = 0;
+var logCache = [];
+
+function S(id) { return document.getElementById(id); }
+
+function switchTab(name) {
+  var tabs = document.querySelectorAll('.tab-content');
+  var items = document.querySelectorAll('.tab-item');
+  var activeTab = S('tab-' + name);
+  var prevTab = document.querySelector('.tab-content.active');
+  tabs.forEach(function(t) { t.classList.remove('active'); });
+  if (activeTab) {
+    activeTab.classList.add('active');
+    if (prevTab && prevTab !== activeTab) {
+      var wasAnimating = prevTab._entering;
+      if (wasAnimating) prevTab.style.transition = 'none';
+      prevTab.style.transform = 'translateY(-6px) scale(0.97)';
+      prevTab.style.opacity = '0';
+      if (wasAnimating) requestAnimationFrame(function() { prevTab.style.transition = ''; });
+    }
+    activeTab.style.transform = 'translateY(8px) scale(0.97)';
+    activeTab.style.opacity = '0';
+    activeTab._entering = true;
+    requestAnimationFrame(function() {
+      activeTab.style.transition = 'transform .45s var(--ease-spring),opacity .3s ease';
+      activeTab.style.transform = '';
+      activeTab.style.opacity = '';
+      setTimeout(function() { activeTab.style.transition = ''; activeTab._entering = false; }, 500);
+    });
+  }
+  items.forEach(function(t) { t.classList.toggle('active', t.dataset.tab === name); });
+  S('actionBtnWrapper') && (S('actionBtnWrapper').style.display = name === 'scan' ? '' : 'none');
+  if (name === 'history') renderHistory();
+}
+
+var navTicking = false;
+window.addEventListener('scroll', function() {
+  if (!navTicking) {
+    requestAnimationFrame(function() {
+      S('topNav').classList.toggle('compact', window.scrollY > 8);
+      var pages = document.querySelector('.page-content');
+      if (pages) pages.classList.toggle('scrolled', window.scrollY > 0);
+      navTicking = false;
+    });
+    navTicking = true;
+  }
+}, {passive: true});
+
+function saveConfig() {
+  var cfg = {
+    bandwidthSize: parseFloat(S('cfgBandwidthSize').value),
+    candidates: parseInt(S('cfgCandidates').value) || 150,
+    mode: S('modeSeg').querySelector('.active').dataset.mode,
+    globalTopN: parseInt(S('cfgGlobalTopN').value) || 15,
+    perCountryTopN: parseInt(S('cfgPerCountryTopN').value) || 1,
+    tcpProbes: parseInt(S('cfgTCPProbes').value) || 1,
+    tcpWorkers: parseInt(S('cfgTCPWorkers').value) || 300,
+    tcpTimeout: parseFloat(S('cfgTCPTimeout').value) || 3,
+    bandwidthWorkers: parseInt(S('cfgBWWorkers').value) || 3,
+    bandwidthTimeout: parseFloat(S('cfgBWTimeout').value) || 3,
+    minSuccessRate: parseInt(S('cfgMinSuccessRate').value) || 100,
+    testAvailability: S('cfgAvailability').checked,
+    httpTestEnabled: S('cfgHTTPTest').checked,
+    portFilterEnabled: S('cfgPortFilter').checked,
+    filterPorts: S('cfgPorts').value.split(',').map(function(s) { return parseInt(s.trim()); }).filter(function(n) { return !isNaN(n); }),
+    blockCountryEnabled: S('cfgBlockCountry').checked,
+    blockedCountries: S('cfgBlockedCountries').value.split(',').map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s; }),
+    useDirectIP: S('cfgUseDirectIP').checked,
+    sourceURLs: S('cfgSources').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
+    directIPs: S('cfgDirectIPs').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
+    cfEnabled: S('cfgCFEnabled').checked,
+    gitSyncEnabled: S('cfgGitSync').checked,
+    dnsBlacklist: S('cfgDNSBlacklist').checked,
+    riskLevel: S('cfgRiskLevel').value
+  };
+  localStorage.setItem('cfnbConfig', JSON.stringify(cfg));
+}
+
+function loadConfig() {
+  try {
+    var saved = JSON.parse(localStorage.getItem('cfnbConfig'));
+    if (!saved) return;
+    S('cfgBandwidthSize').value = saved.bandwidthSize || 1;
+    S('cfgCandidates').value = saved.candidates || 150;
+    S('cfgGlobalTopN').value = saved.globalTopN || 15;
+    S('cfgPerCountryTopN').value = saved.perCountryTopN || 1;
+    S('cfgTCPProbes').value = saved.tcpProbes || 1;
+    S('cfgTCPWorkers').value = saved.tcpWorkers || 300;
+    S('cfgTCPTimeout').value = saved.tcpTimeout || 3;
+    S('cfgBWWorkers').value = saved.bandwidthWorkers || 3;
+    S('cfgBWTimeout').value = saved.bandwidthTimeout || 3;
+    S('cfgMinSuccessRate').value = saved.minSuccessRate || 100;
+    if (saved.testAvailability !== undefined) S('cfgAvailability').checked = saved.testAvailability;
+    if (saved.httpTestEnabled !== undefined) S('cfgHTTPTest').checked = saved.httpTestEnabled;
+    if (saved.portFilterEnabled !== undefined) {
+      S('cfgPortFilter').checked = saved.portFilterEnabled;
+      S('portFilterSection').style.display = saved.portFilterEnabled ? 'block' : 'none';
+    }
+    if (saved.filterPorts && saved.filterPorts.length > 0) S('cfgPorts').value = saved.filterPorts.join(',');
+    if (saved.blockCountryEnabled !== undefined) {
+      S('cfgBlockCountry').checked = saved.blockCountryEnabled;
+      S('blockCountrySection').style.display = saved.blockCountryEnabled ? 'block' : 'none';
+    }
+    if (saved.blockedCountries && saved.blockedCountries.length > 0) S('cfgBlockedCountries').value = saved.blockedCountries.join(',');
+    if (saved.useDirectIP !== undefined) {
+      S('cfgUseDirectIP').checked = saved.useDirectIP;
+      toggleDataSource();
+    }
+    if (saved.sourceURLs && saved.sourceURLs.length > 0) S('cfgSources').value = saved.sourceURLs.join('\n');
+    if (saved.directIPs && saved.directIPs.length > 0) S('cfgDirectIPs').value = saved.directIPs.join('\n');
+    updateDirectIPCount();
+    if (saved.cfEnabled !== undefined) S('cfgCFEnabled').checked = saved.cfEnabled;
+    if (saved.gitSyncEnabled !== undefined) S('cfgGitSync').checked = saved.gitSyncEnabled;
+    if (saved.dnsBlacklist !== undefined) {
+      S('cfgDNSBlacklist').checked = saved.dnsBlacklist;
+      toggleDNSBlacklist();
+    }
+    if (saved.riskLevel) S('cfgRiskLevel').value = saved.riskLevel;
+    if (saved.mode) {
+      document.querySelectorAll('#modeSeg .seg-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.mode === saved.mode);
+      });
+      updateModeFields();
+    }
+    updateToggleUI();
+  } catch(e) {}
+}
+loadConfig();
+
+function updateToggleUI() {
+  ['cfgAvailability','cfgHTTPTest','cfgPortFilter','cfgBlockCountry','cfgUseDirectIP','cfgCFEnabled','cfgGitSync'].forEach(function(id) {
+    var t = S(id);
+    if (t) t.closest('.toggle-track').classList.toggle('on', t.checked);
+  });
+}
+
+document.querySelectorAll('.toggle-track').forEach(function(el) {
+  var cb = el.querySelector('.toggle-input');
+  cb.addEventListener('change', function() {
+    el.classList.toggle('on', this.checked);
+    saveConfig();
+  });
+});
+
+document.querySelectorAll('#modeSeg .seg-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('#modeSeg .seg-btn').forEach(function(b) { b.classList.remove('active'); });
+    this.classList.add('active');
+    updateModeFields();
+    saveConfig();
+  });
+});
+
+function updateModeFields() {
+  var isPerCountry = S('modeSeg').querySelector('.active').dataset.mode === 'percountry';
+  S('cfgGlobalTopN').disabled = isPerCountry;
+  S('cfgPerCountryTopN').disabled = !isPerCountry;
+  S('globalTopNRow').classList.toggle('field-disabled', isPerCountry);
+  S('perCountryTopNRow').classList.toggle('field-disabled', !isPerCountry);
+}
+
+S('cfgPortFilter').addEventListener('change', function() {
+  S('portFilterSection').style.display = this.checked ? 'block' : 'none';
+  saveConfig();
+});
+S('cfgBlockCountry').addEventListener('change', function() {
+  S('blockCountrySection').style.display = this.checked ? 'block' : 'none';
+  saveConfig();
+});
+S('cfgUseDirectIP').addEventListener('change', function() {
+  toggleDataSource();
+  saveConfig();
+});
+['cfgBandwidthSize','cfgCandidates','cfgGlobalTopN','cfgPerCountryTopN','cfgTCPProbes','cfgTCPWorkers','cfgTCPTimeout','cfgBWWorkers','cfgBWTimeout','cfgMinSuccessRate','cfgPorts','cfgBlockedCountries','cfgSources','cfgDirectIPs'].forEach(function(id) {
+  var el = S(id);
+  if (el) el.addEventListener('change', saveConfig);
+});
+
+function toggleDataSource() {
+  var isDirect = S('cfgUseDirectIP').checked;
+  S('urlSourceSection').style.display = isDirect ? 'none' : 'block';
+  S('directIPSection').style.display = isDirect ? 'block' : 'none';
+  if (isDirect) updateDirectIPCount();
+}
+
+function updateDirectIPCount() {
+  var ta = S('cfgDirectIPs');
+  var count = ta.value.split('\n').filter(function(s) { return s.trim(); }).length;
+  S('directIPCount').textContent = count + ' 条';
+}
+
+function importIPFile() {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.txt,.csv';
+  input.onchange = function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function() {
+      var text = reader.result;
+      var rawLines = text.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+      if (rawLines.length === 0) return;
+      var ipCol = -1, portCol = -1, countryCol = -1;
+      var header = rawLines[0].split(',');
+      var ipHeaders = ['ip','address','host','server','node','端口','port','ip地址','地址'];
+      var portHeaders = ['端口号','port','端口'];
+      var countryHeaders = ['country','国家','cc','code','region','区域','国家代码','数据中心','ip位置','位置'];
+      ipHeaders.forEach(function(h) {
+        var idx = header.findIndex(function(c) { return c.trim().toLowerCase() === h; });
+        if (idx >= 0) ipCol = idx;
+      });
+      portHeaders.forEach(function(h) {
+        var idx = header.findIndex(function(c) { return c.trim().toLowerCase() === h; });
+        if (idx >= 0) portCol = idx;
+      });
+      countryHeaders.forEach(function(h) {
+        var idx = header.findIndex(function(c) { return c.trim().toLowerCase() === h; });
+        if (idx >= 0) countryCol = idx;
+      });
+      var lines = [];
+      var startIdx = (ipCol >= 0 || countryCol >= 0) ? 1 : 0;
+      for (var i = startIdx; i < rawLines.length; i++) {
+        var parts = rawLines[i].split(',');
+        var ip = ipCol >= 0 ? parts[ipCol].trim() : parts[0].trim();
+        if (!ip) continue;
+        var rawPort = (portCol >= 0 && parts[portCol]) ? parts[portCol].trim() : '';
+        var country = (countryCol >= 0 && parts[countryCol]) ? parts[countryCol].trim() : '';
+        var entry = '';
+        if (ip.includes(':')) {
+          entry = ip;
+        } else if (rawPort && /^\d+$/.test(rawPort)) {
+          entry = ip + ':' + rawPort;
+        } else if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+          entry = ip + ':443';
+        } else {
+          continue;
+        }
+        if (country) entry += '#' + country;
+        lines.push(entry);
+      }
+      S('cfgDirectIPs').value = lines.join('\n');
+      saveConfig();
+      updateDirectIPCount();
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function pasteDirectIPs() {
+  navigator.clipboard.readText().then(function(text) {
+    if (!text) return;
+    var ta = S('cfgDirectIPs');
+    var existing = ta.value.trim();
+    if (existing) text = existing + '\n' + text;
+    ta.value = text;
+    saveConfig();
+    updateDirectIPCount();
+  }).catch(function() {
+    showToast('无法读取剪贴板');
+  });
+}
+
+function toggleDNSBlacklist() {
+  var enabled = S('cfgDNSBlacklist').checked;
+  S('riskLevelRow').style.opacity = enabled ? '1' : '0.4';
+  S('cfgRiskLevel').disabled = !enabled;
+  if (!enabled) S('cfgRiskLevel').value = '关闭';
+  saveConfig();
+}
+
+function resetConfig() {
+  localStorage.removeItem('cfnbConfig');
+  location.reload();
+}
+
+function setControlsDisabled(disabled) {
+  var ids = ['cfgBandwidthSize','cfgCandidates','cfgGlobalTopN','cfgPerCountryTopN','cfgTCPProbes','cfgTCPWorkers','cfgTCPTimeout','cfgBWWorkers','cfgBWTimeout','cfgMinSuccessRate','cfgPorts','cfgBlockedCountries','cfgSources','cfgDirectIPs','cfgUseDirectIP','cfgAvailability','cfgHTTPTest','cfgPortFilter','cfgBlockCountry','cfgCFEnabled','cfgGitSync','cfgDNSBlacklist','cfgRiskLevel'];
+  ids.forEach(function(id) {
+    var el = S(id);
+    if (el) el.disabled = disabled;
+  });
+  document.querySelectorAll('#modeSeg .seg-btn').forEach(function(b) { b.style.pointerEvents = disabled ? 'none' : ''; b.style.opacity = disabled ? '0.4' : ''; });
+  document.querySelectorAll('.toggle-track').forEach(function(t) { t.classList.toggle('disabled', disabled); });
+}
+
+function toggleScan() {
+  if (S('actionBtn').textContent.includes('停止扫描')) { stopPipeline(); return; }
+  startPipeline();
+}
+
+function startPipeline() {
+  logCache = [];
+  S('logPanel').innerHTML = '';
+  setControlsDisabled(true);
+  var isPerCountry = S('modeSeg').querySelector('.active').dataset.mode === 'percountry';
+  var cfg = {
+    bandwidthSize: parseFloat(S('cfgBandwidthSize').value),
+    candidates: parseInt(S('cfgCandidates').value) || 150,
+    mode: isPerCountry ? 'percountry' : 'global',
+    globalTopN: isPerCountry ? 0 : (parseInt(S('cfgGlobalTopN').value) || 15),
+    perCountryTopN: isPerCountry ? (parseInt(S('cfgPerCountryTopN').value) || 1) : 0,
+    tcpProbes: parseInt(S('cfgTCPProbes').value) || 1,
+    tcpWorkers: parseInt(S('cfgTCPWorkers').value) || 300,
+    tcpTimeout: parseFloat(S('cfgTCPTimeout').value) || 3,
+    bandwidthWorkers: parseInt(S('cfgBWWorkers').value) || 3,
+    bandwidthTimeout: parseFloat(S('cfgBWTimeout').value) || 3,
+    minSuccessRate: (parseInt(S('cfgMinSuccessRate').value) || 100) / 100,
+    testAvailability: S('cfgAvailability').checked,
+    httpTestEnabled: S('cfgHTTPTest').checked,
+    preFilterPortEnabled: S('cfgPortFilter').checked,
+    preFilterPorts: S('cfgPorts').value.split(',').map(function(s) { return parseInt(s.trim()); }).filter(function(n) { return !isNaN(n); }),
+    preFilterBlockedEnabled: S('cfgBlockCountry').checked,
+    preFilterBlockedCountries: S('cfgBlockedCountries').value.split(',').map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s; }),
+    useURLSource: !S('cfgUseDirectIP').checked,
+    sourceURLs: S('cfgSources').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
+    directIPs: S('cfgDirectIPs').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
+    cfEnabled: S('cfgCFEnabled').checked,
+    gitSyncEnabled: S('cfgGitSync').checked,
+    dnsBlacklistFilter: S('cfgDNSBlacklist').checked,
+    dnsRiskMaxLevel: S('cfgRiskLevel').value
+  };
+  fetch('/api/run', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(cfg) })
+    .then(function(r) { return r.json(); })
+    .then(function(d) { if (!d.ok) alert('管道正在运行中'); })
+    .catch(function(e) { alert('启动失败: ' + e); });
+}
+
+function stopPipeline() {
+  var btn = S('actionBtn');
+  btn.innerHTML = '<span class="btn-spinner"></span> 正在停止...';
+  btn.disabled = true;
+  var forceTimer = setTimeout(function() {
+    resetToIdle();
+    addLogLine('停止超时，已强制恢复');
+  }, 3000);
+  fetch('/api/stop', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      clearTimeout(forceTimer);
+      if (!d.ok) { alert(d.msg); btn.disabled = false; }
+    })
+    .catch(function(e) {
+      clearTimeout(forceTimer);
+      alert('终止失败: ' + e);
+      btn.disabled = false;
+    });
+}
+
+function addLogLine(msg) {
+  var panel = S('logPanel');
+  var div = document.createElement('div');
+  div.className = 'log-line warn';
+  div.textContent = msg;
+  panel.appendChild(div);
+  panel.scrollTop = panel.scrollHeight;
+}
+
+function connectSSE() {
+  var evtSource = new EventSource('/api/events');
+  evtSource.onmessage = function(e) {
+    try { updateUI(JSON.parse(e.data)); } catch(ex) {}
+  };
+  evtSource.onerror = function() { setTimeout(connectSSE, 3000); };
+}
+
+function updateUI(s) {
+  var btn = S('actionBtn');
+  running = s.running;
+  if (s.running) {
+    btn.innerHTML = '<span class="btn-spinner"></span> 停止扫描';
+    btn.className = 'btn btn-running';
+    btn.disabled = false;
+    S('logPanelWrap').style.display = 'block';
+    S('resultsPanel').style.display = 'none';
+    if (!scanStart) { scanStart = Date.now(); startTimer(); }
+  } else if (s.results) {
+    btn.innerHTML = '重新测速';
+    btn.className = 'btn btn-primary';
+    btn.disabled = false;
+    stopTimer();
+    scanStart = 0;
+    setControlsDisabled(false);
+    s.progress = '完成';
+    saveHistory(s.results);
+    switchTab('history');
+  } else {
+    resetToIdle();
+  }
+  updateLogs(s.logs || []);
+}
+
+function resetToIdle() {
+  var btn = S('actionBtn');
+  btn.innerHTML = '开始测速';
+  btn.className = 'btn btn-primary';
+  btn.disabled = false;
+  stopTimer();
+  scanStart = 0;
+  running = false;
+  setControlsDisabled(false);
+  S('logPanelWrap').style.display = 'none';
+  S('scanTimer').textContent = '--';
+  S('logPanel').innerHTML = '';
+}
+
+function startTimer() {
+  stopTimer();
+  scanTimer = setInterval(function() {
+    var elapsed = ((Date.now() - scanStart) / 1000).toFixed(0);
+    S('scanTimer').textContent = elapsed + 's';
+  }, 1000);
+}
+
+function stopTimer() {
+  if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
+}
+
+function updateLogs(logs) {
+  if (!logs || logs.length <= logCache.length) return;
+  var panel = S('logPanel');
+  for (var i = logCache.length; i < logs.length; i++) {
+    var l = logs[i];
+    var div = document.createElement('div');
+    div.className = 'log-line';
+    if (l.includes('ERROR') || l.includes('错误')) div.className += ' error';
+    else if (l.includes('带宽测速') || (l.includes('带宽') && l.includes('进度'))) div.className += ' success';
+    else if (l.includes('HTTP')) div.className += ' info';
+    else if (l.includes('可用性')) div.className += ' warn';
+    else if (l.includes('TCP') || l.includes('tcp')) div.className += ' error';
+    else if (l.includes('成功') || l.includes('完成') || l.includes('通过')) div.className += ' success';
+    else if (l.includes('进度') || l.includes('Phase') || l.includes('开始')) div.className += ' info';
+    else if (l.includes('失败') || l.includes('跳过')) div.className += ' warn';
+    div.textContent = l;
+    panel.appendChild(div);
+  }
+  logCache = logs.slice();
+  panel.scrollTop = panel.scrollHeight;
+}
+
+function getBWColor(speed) {
+  if (speed >= 10) return 'green';
+  if (speed >= 3) return 'orange';
+  return 'red';
+}
+
+function showResults(r) {
+  results = r;
+  S('statNodes').textContent = r.nodes.length;
+  S('statBW').textContent = r.totalBandwidth.toFixed(1) + ' Mb/s';
+  S('statLatency').textContent = r.avgLatency.toFixed(1) + ' ms';
+  renderResults(r.nodes);
+}
+
+function renderResults(nodes) {
+  var container = S('resultList');
+  var filter = (S('filterInput').value || '').toLowerCase();
+  var filtered = filter ? nodes.filter(function(n) { return n.node.toLowerCase().includes(filter) || (n.ccTag && n.ccTag.toLowerCase().includes(filter)) || (n.country && n.country.toLowerCase().includes(filter)); }) : nodes;
+
+  function fmt(v) { return v > 0 ? v.toFixed(1) : '-'; }
+  function fmtSpeed(v) {
+    if (v <= 0) return '-';
+    if (v >= 1) return v.toFixed(1) + ' Mb/s';
+    return (v * 1000).toFixed(0) + ' Kb/s';
+  }
+  function fmtDC(n) {
+    var colo = n.coloCode || '';
+    var cc = n.countryCode || '';
+    if (colo && cc) return colo + '-' + cc;
+    if (colo) return colo;
+    return cc || n.country || '-';
+  }
+
+  container.innerHTML = filtered.map(function(n, i) {
+    var ip = escapeHtml(n.node.split('#')[0] || n.node);
+    var parts = ip.split(':');
+    var host = parts[0], port = parts[1] || '';
+    var speed = n.speed || 0;
+    var bwColor = getBWColor(speed);
+    var maxRef = Math.max(speed, 10);
+    var bwPct = Math.min(speed / maxRef * 100, 100);
+    return '<div class="result-item fade-in" style="animation-delay:' + Math.min(i*20,250) + 'ms">' +
+      '<div class="ri-top"><span class="ri-rank">#' + (i+1) + '</span><span class="ri-ip" onclick="copySingleIP(\'' + escapeHtml(ip) + '\')">' + escapeHtml(host) + '</span>' + (port ? '<span class="ri-port">:' + escapeHtml(port) + '</span>' : '') + '</div>' +
+       '<div class="ri-meta">' +
+      '<div class="ri-m"><span>实测带宽</span> <strong class="' + bwColor + '">' + fmtSpeed(speed) + '</strong></div>' +
+      '<div class="ri-m"><span>往返延迟</span> <strong class="green">' + fmt(n.latency) + ' ms</strong></div>' +
+      '<div class="ri-m"><span>HTTP 抖动</span> <strong class="orange">' + fmt(n.httpJitter) + ' ms</strong></div>' +
+      '<div class="ri-m"><span>HTTP 延迟</span> <strong class="amber">' + fmt(n.httpLatency) + ' ms</strong></div>' +
+      '<div class="ri-m"><span>峰值速度</span> <strong class="purple">' + fmtSpeed(n.peakSpeed) + '</strong></div></div>' +
+      '<div class="ri-colo">' + escapeHtml(fmtDC(n)) + '</div>' +
+      '<div class="ri-bw"><div class="ri-bw-bar"><div class="ri-bw-fill ' + bwColor + '" style="width:' + bwPct + '%"></div></div><span class="ri-bw-val ' + bwColor + '">' + fmtSpeed(speed) + '</span></div></div>';
+  }).join('');
+}
+
+function copySingleIP(ip) {
+  navigator.clipboard.writeText(ip).then(function() {}).catch(function() {});
+}
+
+function copyAllIPs() {
+  if (!results || !results.nodes) return;
+  var text = results.nodes.map(function(n) {
+    var ip = (n.node.split('#')[0] || n.node);
+    var colo = n.coloCode || '';
+    var cc = n.countryCode || '';
+    var dc = colo && cc ? colo + '-' + cc : (colo || cc || n.country || '');
+    return ip + '#' + dc;
+  }).join('\n');
+  navigator.clipboard.writeText(text).then(function() {
+    var btn = S('copyBtn');
+    btn.innerHTML = '<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:1pt"><polyline points="2 8 6 12 14 4"/></svg> 已复制';
+    btn.style.color = 'var(--success)';
+    btn.style.borderColor = 'rgba(52,199,89,0.2)';
+    setTimeout(function() {
+      btn.innerHTML = '复制';
+      btn.style.color = '';
+      btn.style.borderColor = '';
+    }, 1500);
+  }).catch(function() {});
+}
+
+function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+S('filterInput').addEventListener('input', function() {
+  if (results) renderResults(results.nodes);
+});
+
+var coloCountry = {'US':'美国','GB':'英国','DE':'德国','JP':'日本','KR':'韩国','SG':'新加坡','NL':'荷兰','FR':'法国','CA':'加拿大','AU':'澳大利亚','HK':'香港','IN':'印度','BR':'巴西','RU':'俄罗斯','CN':'中国','TW':'台湾','VN':'越南','TH':'泰国','MY':'马来西亚','ID':'印尼','PH':'菲律宾','CH':'瑞士','SE':'瑞典','IT':'意大利','ES':'西班牙','PL':'波兰','UA':'乌克兰','TR':'土耳其','ZA':'南非','AE':'阿联酋','IE':'爱尔兰','NO':'挪威','FI':'芬兰','DK':'丹麦','AT':'奥地利','BE':'比利时','PT':'葡萄牙','GR':'希腊','CZ':'捷克','HU':'匈牙利','RO':'罗马尼亚','BG':'保加利亚','NZ':'新西兰','CL':'智利','AR':'阿根廷','MX':'墨西哥','CO':'哥伦比亚','PE':'秘鲁'};
+
+function coloFlag(c) { return c && coloCountry[c] ? ' - ' + coloCountry[c] : ''; }
+
+function fmtDur(s) { if (s <= 0) return '-'; if (s < 60) return Math.round(s) + 's'; var m = Math.floor(s / 60); var sec = Math.round(s % 60); return m + ':' + (sec < 10 ? '0' : '') + sec; }
+
+function saveHistory(r) {
+  var history = [];
+  try { history = JSON.parse(localStorage.getItem('cfnbHistory') || '[]'); } catch(e) {}
+  if (history.length > 0 && history[0].nodes === r.nodes.length && history[0].totalBandwidth === r.totalBandwidth) return;
+  history.unshift({
+    time: new Date().toLocaleString(),
+    nodes: r.nodes.length,
+    totalBandwidth: r.totalBandwidth,
+    avgLatency: r.avgLatency,
+    totalTime: r.totalTime,
+    results: r
+  });
+  if (history.length > 20) history = history.slice(0, 20);
+  localStorage.setItem('cfnbHistory', JSON.stringify(history));
+}
+
+function renderHistory(skipAnimation) {
+  var history = [];
+  try { history = JSON.parse(localStorage.getItem('cfnbHistory') || '[]'); } catch(e) {}
+  var container = S('historyList');
+  S('clearHistoryBtn').style.display = history.length ? '' : 'none';
+  S('historyCount').textContent = history.length + ' 条记录';
+  if (!history.length) {
+    container.innerHTML = '<div class="empty-state"><svg viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="40" cy="40" r="28"/><polyline points="40 28 40 40 48 48"/><path d="M28 16l-8 8M52 16l8 8"/></svg><div class="empty-title">暂无扫描记录</div><div class="empty-desc">完成一次扫描后，结果将出现在这里</div></div>';
+    return;
+  }
+  function fmtSpeed(v) {
+    if (v <= 0) return '-';
+    if (v >= 1) return v.toFixed(1) + ' Mb/s';
+    return (v * 1000).toFixed(0) + ' Kb/s';
+  }
+  function fmtDC(n) {
+    var colo = n.coloCode || '';
+    var cc = n.countryCode || '';
+    if (colo && cc) return colo + '-' + cc;
+    if (colo) return colo;
+    return cc || n.country || '-';
+  }
+  function fmtPeakSpeed(v) {
+    if (v <= 0) return '-';
+    return (v * 1000).toFixed(0) + ' Kb/s';
+  }
+  var html = '';
+  history.forEach(function(h, hi) {
+    var nodes = (h.results && h.results.nodes) ? h.results.nodes : [];
+    var r0 = nodes[0];
+    var total = nodes.length;
+    html += '<div class="glass-card history-item stagger-enter">';
+    html += '<div class="history-item-top"><span class="h-time">' + escapeHtml(h.time) + '</span><div style="display:flex;gap:6pt">' +
+      '<button class="btn-text" onclick="copyAllFromHistory(' + hi + ')" style="font-size:11px;height:26pt;padding:0 8pt">复制</button>' +
+      '<button class="btn-text" onclick="deleteHistory(' + hi + ')" style="font-size:11px;height:26pt;padding:0 8pt">删除</button>' +
+      '</div></div>';
+    if (r0) {
+      var ip = escapeHtml(r0.node.split('#')[0] || r0.node);
+      var speed = r0.speed || 0;
+      var peak = r0.peakSpeed || 0;
+      var lat = r0.latency || 0;
+      var jitter = r0.httpJitter || 0;
+      var httpLat = r0.httpLatency || 0;
+      var dc = escapeHtml(fmtDC(r0));
+      var bwCls = speed <= 0 ? 'fail' : (speed >= 10 ? 'ok' : (speed >= 3 ? 'mid' : 'red'));
+      html += '<div class="ip" onclick="copySingleIP(\'' + ip + '\')">' + ip + '</div>';
+      html += '<div class="history-metrics">';
+      html += '<div class="hm-row">';
+      html += '<span class="hm">实测带宽: <strong class="' + bwCls + '">' + fmtSpeed(speed) + '</strong></span>';
+      html += '<span class="hm">往返延迟: <strong>' + (lat > 0 ? lat.toFixed(1) + ' ms' : '-') + '</strong></span>';
+      html += '<span class="hm">峰值速度: <strong>' + fmtPeakSpeed(peak) + '</strong></span>';
+      html += '<span class="hm">数据中心: <strong>' + dc + '</strong></span>';
+      html += '<span class="hm">HTTP 抖动: <strong>' + (jitter > 0 ? jitter.toFixed(1) + ' ms' : '-') + '</strong></span>';
+      html += '<span class="hm">HTTP 延迟: <strong>' + (httpLat > 0 ? httpLat.toFixed(1) + ' ms' : '-') + '</strong></span>';
+      html += '</div></div>';
+    }
+    if (total > 1) {
+      html += '<div class="h-expand-bar"><div class="segmented"><button class="seg-btn" onclick="toggleHistoryExpand(' + hi + ')"><span>展开全部 | ' + total + '</span></button><button class="seg-btn" onclick="dnsUploadFromHistory(' + hi + ')">DNS上传</button><button class="seg-btn" onclick="githubUploadFromHistory(' + hi + ')">GIT上传</button></div></div>';
+    }
+    html += '<div class="h-detail" id="hDetail_' + hi + '" style="display:none">';
+    nodes.forEach(function(n, ri) {
+      if (ri === 0) return;
+      var nip = escapeHtml(n.node.split('#')[0] || n.node);
+      var nspeed = n.speed || 0;
+      var npeak = n.peakSpeed || 0;
+      var nlat = n.latency || 0;
+      var njitter = n.httpJitter || 0;
+      var nhttpLat = n.httpLatency || 0;
+      var ndc = escapeHtml(fmtDC(n));
+      var nbwCls = nspeed <= 0 ? 'fail' : (nspeed >= 10 ? 'ok' : (nspeed >= 3 ? 'mid' : 'red'));
+      html += '<div class="glass-card material-thin history-item h-detail-card">';
+      html += '<div class="ip" onclick="copySingleIP(\'' + nip + '\')">' + nip + '</div>';
+      html += '<div class="history-metrics">';
+      html += '<div class="hm-row">';
+      html += '<span class="hm">实测带宽: <strong class="' + nbwCls + '">' + fmtSpeed(nspeed) + '</strong></span>';
+      html += '<span class="hm">往返延迟: <strong>' + (nlat > 0 ? nlat.toFixed(1) + ' ms' : '-') + '</strong></span>';
+      html += '<span class="hm">峰值速度: <strong>' + fmtPeakSpeed(npeak) + '</strong></span>';
+      html += '<span class="hm">数据中心: <strong>' + ndc + '</strong></span>';
+      html += '<span class="hm">HTTP 抖动: <strong>' + (njitter > 0 ? njitter.toFixed(1) + ' ms' : '-') + '</strong></span>';
+      html += '<span class="hm">HTTP 延迟: <strong>' + (nhttpLat > 0 ? nhttpLat.toFixed(1) + ' ms' : '-') + '</strong></span>';
+      html += '</div></div></div>';
+    });
+    html += '</div></div>';
+  });
+  if (!skipAnimation) {
+    container.innerHTML = html;
+    requestAnimationFrame(function() {
+      container.querySelectorAll('.stagger-enter').forEach(function(el, i) {
+        setTimeout(function() { el.classList.add('enter'); }, i * 50);
+      });
+    });
+  } else {
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    tmp.querySelectorAll('.stagger-enter').forEach(function(el) { el.classList.add('enter'); });
+    var frag = document.createDocumentFragment();
+    while (tmp.firstChild) frag.appendChild(tmp.firstChild);
+    container.replaceChildren(frag);
+  }
+}
+
+function toggleHistoryExpand(hi) {
+  var detail = S('hDetail_' + hi);
+  if (!detail) return;
+  var isHidden = detail.style.display === 'none';
+  detail.style.display = isHidden ? '' : 'none';
+}
+
+function copyAllFromHistory(hi) {
+  var history = [];
+  try { history = JSON.parse(localStorage.getItem('cfnbHistory') || '[]'); } catch(e) {}
+  var h = history[hi];
+  if (!h) return;
+  var nodes = (h.results && h.results.nodes) ? h.results.nodes : [];
+  var text = nodes.map(function(n) {
+    var ip = n.node.split('#')[0] || n.node;
+    var colo = n.coloCode || '';
+    var cc = n.countryCode || '';
+    var dc = colo && cc ? colo + '-' + cc : (colo || cc || n.country || '');
+    return ip + '#' + dc;
+  }).join('\n');
+  navigator.clipboard.writeText(text).then(function() {}).catch(function() {});
+}
+
+function dnsUploadFromHistory(hi) {}
+function githubUploadFromHistory(hi) {}
+
+function deleteHistory(idx) {
+  var history = [];
+  try { history = JSON.parse(localStorage.getItem('cfnbHistory') || '[]'); } catch(e) {}
+  history.splice(idx, 1);
+  localStorage.setItem('cfnbHistory', JSON.stringify(history));
+  renderHistory(true);
+}
+
+function clearHistory() {
+  localStorage.removeItem('cfnbHistory');
+  renderHistory(true);
+  showToast('已清空');
+}
+
+function setTheme(theme) {
+  document.querySelectorAll('.segmented .seg-btn[data-theme]').forEach(function(b) { b.classList.remove('active'); });
+  document.querySelector('.segmented .seg-btn[data-theme="' + theme + '"]').classList.add('active');
+  localStorage.setItem('cfnbTheme', theme);
+  applyTheme(theme);
+}
+
+function applyTheme(theme) {
+  if (theme === 'system') {
+    document.documentElement.setAttribute('data-theme', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  } else {
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+}
+
+function showToast(msg) {
+  var t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:calc(env(safe-area-inset-bottom) + 100pt);left:50%;transform:translateX(-50%);background:var(--material-thick);backdrop-filter:blur(20px);color:var(--text);font-size:13px;font-weight:500;padding:10pt 20pt;border-radius:14pt;z-index:999;opacity:0;transition:opacity .25s ease;pointer-events:none;white-space:nowrap;border:0.5px solid var(--glass-border)';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  requestAnimationFrame(function() { t.style.opacity = '1'; });
+  setTimeout(function() { t.style.opacity = '0'; setTimeout(function() { t.remove(); }, 300); }, 1500);
+}
+
+function loadTheme() {
+  var saved = localStorage.getItem('cfnbTheme') || 'dark';
+  document.querySelectorAll('.segmented .seg-btn[data-theme]').forEach(function(b) { b.classList.toggle('active', b.dataset.theme === saved); });
+  applyTheme(saved);
+}
+loadTheme();
+
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+  var saved = localStorage.getItem('cfnbTheme') || 'dark';
+  if (saved === 'system') applyTheme('system');
+});
+
+connectSSE();
+fetchLocalIP();
+
+function copyText(t) {
+  navigator.clipboard.writeText(t).catch(function(){});
+}
+
+async function fetchLocalIP() {
+  try {
+    S('liPublic').textContent = '加载中...';
+    S('liLocal').textContent = '--';
+    S('liISP').textContent = '--';
+    S('liLocation').textContent = '--';
+    var r = await fetch('/api/local-ip?_=' + Date.now());
+    var d = await r.json();
+    S('liPublic').textContent = d.publicIP || '--';
+    S('liLocal').textContent = (d.localIPs && d.localIPs.length) ? d.localIPs[0] : '--';
+    S('liISP').textContent = d.isp || '--';
+    S('liLocation').textContent = d.location || '--';
+  } catch(e) {
+    S('liPublic').textContent = '获取失败';
+  }
+}
+</script>
+</body>
+</html>
