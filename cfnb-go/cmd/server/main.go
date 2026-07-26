@@ -165,7 +165,7 @@ func handleEvents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	ch := make(chan bool, 10)
+	ch := make(chan bool, 100)
 	notifMu.Lock()
 	notifs = append(notifs, ch)
 	notifMu.Unlock()
@@ -181,20 +181,51 @@ func handleEvents(w http.ResponseWriter, r *http.Request) {
 		notifMu.Unlock()
 	}()
 
+	sendStatus := func() bool {
+		mu.Lock()
+		b, err := json.Marshal(status)
+		mu.Unlock()
+		if err != nil {
+			return false
+		}
+		_, err = fmt.Fprintf(w, "data: %s\n\n", b)
+		if err != nil {
+			return false
+		}
+		w.(http.Flusher).Flush()
+		return true
+	}
+
 	mu.Lock()
 	b, _ := json.Marshal(status)
 	mu.Unlock()
 	fmt.Fprintf(w, "data: %s\n\n", b)
 	w.(http.Flusher).Flush()
 
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	lastSent := len(status.Logs)
 	for {
 		select {
 		case <-ch:
 			mu.Lock()
-			b, _ := json.Marshal(status)
+			currentLogs := len(status.Logs)
 			mu.Unlock()
-			fmt.Fprintf(w, "data: %s\n\n", b)
-			w.(http.Flusher).Flush()
+			if currentLogs > lastSent {
+				if sendStatus() {
+					lastSent = currentLogs
+				}
+			}
+		case <-ticker.C:
+			mu.Lock()
+			currentLogs := len(status.Logs)
+			mu.Unlock()
+			if currentLogs > lastSent {
+				if sendStatus() {
+					lastSent = currentLogs
+				}
+			}
 		case <-r.Context().Done():
 			return
 		}
