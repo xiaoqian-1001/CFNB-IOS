@@ -577,7 +577,6 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 		case <-ctx.Done():
 			pw.Close()
 			restoreStdout()
-			<-scannerDone
 			<-done
 			mu.Lock()
 			lastPipelineResult = result
@@ -594,7 +593,6 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 			if ctx.Err() != nil {
 				pw.Close()
 				restoreStdout()
-				<-scannerDone
 				<-done
 				mu.Lock()
 				lastPipelineResult = result
@@ -604,17 +602,7 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 				loadResults()
 				return
 			}
-		case <-scannerDone:
-			output := outBuf.String()
-			if output != lastOutput {
-				lastOutput = output
-			}
-			addLog("================================")
-			addLog("Pipeline completed successfully!")
-			loadResults()
-			return
 		case err := <-done:
-			<-scannerDone
 			mu.Lock()
 			lastPipelineResult = result
 			mu.Unlock()
@@ -629,6 +617,29 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 				addLog("Pipeline completed successfully!")
 				loadResults()
 			}
+			pw.Close()
+			restoreStdout()
+			<-scannerDone
+			return
+		case <-scannerDone:
+			// scanner done but pipeline may still be running; wait for it
+			err := <-done
+			mu.Lock()
+			lastPipelineResult = result
+			mu.Unlock()
+			output := outBuf.String()
+			if output != lastOutput {
+				lastOutput = output
+			}
+			if err != nil {
+				addLog("Pipeline completed with errors: " + err.Error())
+			} else {
+				addLog("================================")
+				addLog("Pipeline completed successfully!")
+				loadResults()
+			}
+			pw.Close()
+			restoreStdout()
 			return
 		}
 	}
