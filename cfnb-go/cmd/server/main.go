@@ -376,7 +376,7 @@ func handleLocalIP(w http.ResponseWriter, r *http.Request) {
 	addrs, err := net.InterfaceAddrs()
 	if err == nil {
 		for _, addr := range addrs {
-			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && !ipnet.IP.IsLinkLocalUnicast() {
 				localIPs = append(localIPs, ipnet.IP.String())
 			}
 		}
