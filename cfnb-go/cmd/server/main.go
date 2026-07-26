@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"cfnb/pkg/config"
@@ -503,80 +502,39 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 		}
 	}
 
-	pr, pw, err := os.Pipe()
+	_, pw, err := os.Pipe()
 	if err != nil {
 		addLog("错误: 无法创建管道: " + err.Error())
 		return
 	}
-	defer pr.Close()
 
 	oldStdout := os.Stdout
 	os.Stdout = pw
 
-	restoreStdout := func() {
-		pw.Close()
-		os.Stdout = oldStdout
-	}
-
-	outBuf := &bytes.Buffer{}
+	var outBuf bytes.Buffer
 	done := make(chan error, 1)
 
 	var result *pipeline.Result
 	go func() {
-		defer restoreStdout()
-		r, err := pipeline.Run(ctx, cfg, io.MultiWriter(pw, outBuf))
+		defer func() {
+			pw.Close()
+			os.Stdout = oldStdout
+		}()
+		r, err := pipeline.Run(ctx, cfg, io.MultiWriter(&outBuf, pw))
 		result = r
-		pw.Close()
 		done <- err
 	}()
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
-	var lastOutput string
-	scannerDone := make(chan struct{}, 1)
-
-	go func() {
-		fd := int(pr.Fd())
-		buf := make([]byte, 4096)
-		var leftover []byte
-		for {
-			n, err := syscall.Read(fd, buf)
-			if err != nil || n == 0 {
-				if len(leftover) > 0 {
-					line := strings.TrimRight(string(leftover), "\r")
-					if line != "" {
-						addLog(line)
-						updateProgressFromLog(line)
-					}
-				}
-				break
-			}
-			data := append(leftover, buf[:n]...)
-			for {
-				idx := bytes.IndexByte(data, '\n')
-				if idx < 0 {
-					leftover = data
-					break
-				}
-				line := string(data[:idx])
-				data = data[idx+1:]
-				line = strings.TrimRight(line, "\r")
-				if line != "" {
-					addLog(line)
-					updateProgressFromLog(line)
-				}
-			}
-			leftover = data
-		}
-		scannerDone <- struct{}{}
-	}()
+	var lastOutputLen int
 
 	for {
 		select {
 		case <-ctx.Done():
 			pw.Close()
-			restoreStdout()
+			os.Stdout = oldStdout
 			<-done
 			mu.Lock()
 			lastPipelineResult = result
@@ -586,30 +544,35 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 			loadResults()
 			return
 		case <-ticker.C:
-			output := outBuf.String()
-			if output != lastOutput {
-				lastOutput = output
-			}
-			if ctx.Err() != nil {
-				pw.Close()
-				restoreStdout()
-				<-done
-				mu.Lock()
-				lastPipelineResult = result
-				mu.Unlock()
-				addLog("================================")
-				addLog("停止成功")
-				loadResults()
-				return
+			current := outBuf.Len()
+			if current > lastOutputLen {
+				newData := outBuf.Bytes()[lastOutputLen:]
+				lines := strings.Split(string(newData), "\n")
+				for _, line := range lines {
+					line = strings.TrimSpace(line)
+					if line != "" {
+						addLog(line)
+						updateProgressFromLog(line)
+					}
+				}
+				lastOutputLen = current
 			}
 		case err := <-done:
+			current := outBuf.Len()
+			if current > lastOutputLen {
+				newData := outBuf.Bytes()[lastOutputLen:]
+				lines := strings.Split(string(newData), "\n")
+				for _, line := range lines {
+					line = strings.TrimSpace(line)
+					if line != "" {
+						addLog(line)
+						updateProgressFromLog(line)
+					}
+				}
+			}
 			mu.Lock()
 			lastPipelineResult = result
 			mu.Unlock()
-			output := outBuf.String()
-			if output != lastOutput {
-				lastOutput = output
-			}
 			if err != nil {
 				addLog("Pipeline completed with errors: " + err.Error())
 			} else {
@@ -617,29 +580,6 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 				addLog("Pipeline completed successfully!")
 				loadResults()
 			}
-			pw.Close()
-			restoreStdout()
-			<-scannerDone
-			return
-		case <-scannerDone:
-			// scanner done but pipeline may still be running; wait for it
-			err := <-done
-			mu.Lock()
-			lastPipelineResult = result
-			mu.Unlock()
-			output := outBuf.String()
-			if output != lastOutput {
-				lastOutput = output
-			}
-			if err != nil {
-				addLog("Pipeline completed with errors: " + err.Error())
-			} else {
-				addLog("================================")
-				addLog("Pipeline completed successfully!")
-				loadResults()
-			}
-			pw.Close()
-			restoreStdout()
 			return
 		}
 	}
