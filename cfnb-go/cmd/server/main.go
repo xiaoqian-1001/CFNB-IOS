@@ -327,7 +327,7 @@ func handleLocalIP(w http.ResponseWriter, r *http.Request) {
 	var publicIP, isp, city, regionName, country string
 
 	// Primary: ip-api.com returns IP + ISP + Location in one call (HTTP, no TLS issues on iOS)
-	resp, err := client.Get("http://ip-api.com/json/?fields=ip,isp,city,regionName,country")
+	resp, err := client.Get("http://ip-api.com/json/?fields=query,isp,city,regionName,country")
 	if err == nil {
 		defer resp.Body.Close()
 		type ipapi struct {
