@@ -108,7 +108,7 @@ jobs:
                 NSString *docsCfg = [docs stringByAppendingPathComponent:@"config.json"];
                 [[NSFileManager defaultManager] copyItemAtPath:bundleCfg toPath:docsCfg error:nil];
 
-                StartServer("8080");
+                StartServer("9999");
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ [self tryLoad]; });
                 return YES;
             }
@@ -119,12 +119,12 @@ jobs:
 
           - (void)tryLoad {
                 self.retryCount++;
-                NSMutableURLRequest *r = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"http://127.0.0.1:8080"]];
+                NSMutableURLRequest *r = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"http://127.0.0.1:9999"]];
                 r.timeoutInterval = 3;
                 [[NSURLSession.sharedSession dataTaskWithRequest:r completionHandler:^(NSData *d, NSURLResponse *rsp, NSError *e) {
                     dispatch_async(dispatch_get_main_queue(), ^{
                         if (!e && [(NSHTTPURLResponse *)rsp statusCode] == 200) {
-                            [self.webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://127.0.0.1:8080"]]];
+                            [self.webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://127.0.0.1:9999"]]];
                         } else if (self.retryCount < 20) {
                             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ [self tryLoad]; });
                         } else {
