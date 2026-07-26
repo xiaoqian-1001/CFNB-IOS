@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"cfnb/pkg/config"
@@ -502,7 +503,7 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 		}
 	}
 
-	_, pw, err := os.Pipe()
+	pr, pw, err := os.Pipe()
 	if err != nil {
 		addLog("错误: 无法创建管道: " + err.Error())
 		return
@@ -511,8 +512,9 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 	oldStdout := os.Stdout
 	os.Stdout = pw
 
-	var outBuf bytes.Buffer
+	outBuf := &bytes.Buffer{}
 	done := make(chan error, 1)
+	scannerDone := make(chan struct{}, 1)
 
 	var result *pipeline.Result
 	go func() {
@@ -520,15 +522,52 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 			pw.Close()
 			os.Stdout = oldStdout
 		}()
-		r, err := pipeline.Run(ctx, cfg, io.MultiWriter(&outBuf, pw))
+		r, err := pipeline.Run(ctx, cfg, io.MultiWriter(pw, outBuf))
 		result = r
 		done <- err
+	}()
+
+	go func() {
+		fd := int(pr.Fd())
+		buf := make([]byte, 4096)
+		var leftover []byte
+		for {
+			n, err := syscall.Read(fd, buf)
+			if err != nil || n == 0 {
+				if len(leftover) > 0 {
+					line := strings.TrimRight(string(leftover), "\r")
+					if line != "" {
+						addLog(line)
+						updateProgressFromLog(line)
+					}
+				}
+				break
+			}
+			data := append(leftover, buf[:n]...)
+			for {
+				idx := bytes.IndexByte(data, '\n')
+				if idx < 0 {
+					leftover = data
+					break
+				}
+				line := string(data[:idx])
+				data = data[idx+1:]
+				line = strings.TrimRight(line, "\r")
+				if line != "" {
+					addLog(line)
+					updateProgressFromLog(line)
+				}
+			}
+			leftover = data
+		}
+		pr.Close()
+		scannerDone <- struct{}{}
 	}()
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
-	var lastOutputLen int
+	var lastOutput string
 
 	for {
 		select {
@@ -536,6 +575,7 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 			pw.Close()
 			os.Stdout = oldStdout
 			<-done
+			<-scannerDone
 			mu.Lock()
 			lastPipelineResult = result
 			mu.Unlock()
@@ -544,32 +584,16 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 			loadResults()
 			return
 		case <-ticker.C:
-			current := outBuf.Len()
-			if current > lastOutputLen {
-				newData := outBuf.Bytes()[lastOutputLen:]
-				lines := strings.Split(string(newData), "\n")
-				for _, line := range lines {
-					line = strings.TrimSpace(line)
-					if line != "" {
-						addLog(line)
-						updateProgressFromLog(line)
-					}
-				}
-				lastOutputLen = current
+			output := outBuf.String()
+			if output != lastOutput {
+				lastOutput = output
 			}
 		case err := <-done:
-			current := outBuf.Len()
-			if current > lastOutputLen {
-				newData := outBuf.Bytes()[lastOutputLen:]
-				lines := strings.Split(string(newData), "\n")
-				for _, line := range lines {
-					line = strings.TrimSpace(line)
-					if line != "" {
-						addLog(line)
-						updateProgressFromLog(line)
-					}
-				}
+			output := outBuf.String()
+			if output != lastOutput {
+				lastOutput = output
 			}
+			<-scannerDone
 			mu.Lock()
 			lastPipelineResult = result
 			mu.Unlock()
