@@ -7,6 +7,11 @@ package main
 */
 import "C"
 
+import (
+	"fmt"
+	"os"
+)
+
 func main() {
 	// Called by Go runtime on first exported function invocation.
 	// Server runs in a goroutine from StartServer().
