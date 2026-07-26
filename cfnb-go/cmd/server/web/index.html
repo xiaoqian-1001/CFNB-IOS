@@ -522,6 +522,7 @@ var running = false;
 var scanTimer = null;
 var scanStart = 0;
 var logCache = [];
+var initialLoad = true;
 
 function S(id) { return document.getElementById(id); }
 
@@ -886,9 +887,12 @@ function startPipeline() {
   };
   showToast('正在启动扫描...');
   fetch('/api/run', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(cfg) })
-    .then(function(r) { return r.json(); })
-    .then(function(d) { if (!d.ok) showToast('管道正在运行中'); })
-    .catch(function(e) { showToast('启动失败: ' + e); });
+    .then(function(r) {
+      if (!r.ok) { showToast('启动失败: ' + r.status); return; }
+      return r.json();
+    })
+    .then(function(d) { if (d && !d.ok) showToast('管道正在运行中'); })
+    .catch(function(e) { showToast('启动失败: ' + e.message); });
 }
 
 function stopPipeline() {
@@ -900,14 +904,14 @@ function stopPipeline() {
     addLogLine('停止超时，已强制恢复');
   }, 3000);
   fetch('/api/stop', { method: 'POST' })
-    .then(function(r) { return r.json(); })
+    .then(function(r) { return r.ok ? r.json() : {ok: false, msg: '请求失败'}; })
     .then(function(d) {
       clearTimeout(forceTimer);
       if (!d.ok) { showToast(d.msg); btn.disabled = false; }
     })
     .catch(function(e) {
       clearTimeout(forceTimer);
-      showToast('终止失败: ' + e);
+      showToast('终止失败: ' + e.message);
       btn.disabled = false;
     });
 }
@@ -951,6 +955,7 @@ function updateUI(s) {
     saveHistory(s.results);
     switchTab('history');
   } else {
+    if (initialLoad) { initialLoad = false; return; }
     resetToIdle();
   }
   updateLogs(s.logs || []);

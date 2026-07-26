@@ -260,15 +260,18 @@ type RunConfig struct {
 }
 
 func handleRun(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Write([]byte(`{"ok":false,"msg":"Method not allowed"}`))
 		return
 	}
 
 	mu.Lock()
 	if status.Running {
 		mu.Unlock()
-		http.Error(w, "Pipeline already running", http.StatusConflict)
+		w.WriteHeader(http.StatusConflict)
+		w.Write([]byte(`{"ok":false,"msg":"管道正在运行中"}`))
 		return
 	}
 	currentRunID++
@@ -297,10 +300,10 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleStop(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	mu.Lock()
 	if !status.Running {
 		mu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"ok":false,"msg":"没有正在运行的任务"}`))
 		return
 	}
