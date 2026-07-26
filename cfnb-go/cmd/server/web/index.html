@@ -794,7 +794,46 @@ function toggleDNSBlacklist() {
 
 function resetConfig() {
   localStorage.removeItem('cfnbConfig');
-  location.reload();
+  localStorage.removeItem('cfnbTheme');
+  localStorage.removeItem('cfnbHistory');
+  document.querySelectorAll('input, select, textarea').forEach(function(el) {
+    el.value = el.defaultValue;
+  });
+  document.querySelectorAll('input[type="checkbox"]').forEach(function(el) {
+    el.checked = el.defaultChecked;
+  });
+  document.querySelectorAll('#modeSeg .seg-btn').forEach(function(b, i) {
+    b.classList.toggle('active', i === 0);
+  });
+  S('cfgBandwidthSize').value = '1';
+  S('cfgCandidates').value = '150';
+  S('cfgGlobalTopN').value = '15';
+  S('cfgPerCountryTopN').value = '1';
+  S('cfgTCPProbes').value = '1';
+  S('cfgTCPWorkers').value = '300';
+  S('cfgTCPTimeout').value = '3';
+  S('cfgBWWorkers').value = '3';
+  S('cfgBWTimeout').value = '3';
+  S('cfgMinSuccessRate').value = '100';
+  S('cfgPorts').value = '443';
+  S('cfgBlockedCountries').value = 'CN';
+  S('cfgSources').value = 'https://zip.cm.edu.kg/all.txt';
+  S('cfgDirectIPs').value = '';
+  S('cfgAvailability').checked = true;
+  S('cfgHTTPTest').checked = true;
+  S('cfgPortFilter').checked = true;
+  S('cfgBlockCountry').checked = true;
+  S('cfgCFEnabled').checked = false;
+  S('cfgGitSync').checked = false;
+  S('cfgDNSBlacklist').checked = false;
+  S('cfgRiskLevel').value = '关闭';
+  S('cfgUseDirectIP').checked = false;
+  toggleDataSource();
+  updateModeFields();
+  updateToggleUI();
+  toggleDNSBlacklist();
+  updateDirectIPCount();
+  showToast('已重置');
 }
 
 function setControlsDisabled(disabled) {
