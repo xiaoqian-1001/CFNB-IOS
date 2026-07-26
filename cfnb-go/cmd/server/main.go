@@ -308,12 +308,12 @@ func handleStop(w http.ResponseWriter, r *http.Request) {
 	mu.Unlock()
 	if cancelPipeline != nil {
 		cancelPipeline()
+		mu.Lock()
+		status.Running = false
+		status.Progress = "已停止"
+		mu.Unlock()
+		broadcast()
 	}
-	mu.Lock()
-	status.Running = false
-	status.Progress = "已停止"
-	mu.Unlock()
-	broadcast()
 	_ = stopRunID
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
@@ -396,6 +396,10 @@ func handleLocalIP(w http.ResponseWriter, r *http.Request) {
 
 func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 	defer func() {
+		if r := recover(); r != nil {
+			errMsg := fmt.Sprintf("管道崩溃: %v", r)
+			addLog(errMsg)
+		}
 		mu.Lock()
 		if currentRunID == runID {
 			status.Running = false
@@ -519,6 +523,12 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 	var result *pipeline.Result
 	go func() {
 		defer func() {
+			if r := recover(); r != nil {
+				err := fmt.Errorf("pipeline panic: %v", r)
+				done <- err
+			}
+		}()
+		defer func() {
 			pw.Close()
 			os.Stdout = oldStdout
 		}()
@@ -528,6 +538,13 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 	}()
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				addLog(fmt.Sprintf("扫描器崩溃: %v", r))
+			}
+			pr.Close()
+			scannerDone <- struct{}{}
+		}()
 		fd := int(pr.Fd())
 		buf := make([]byte, 4096)
 		var leftover []byte
@@ -578,6 +595,8 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 			<-scannerDone
 			mu.Lock()
 			lastPipelineResult = result
+			status.Running = false
+			cancelPipeline = nil
 			mu.Unlock()
 			addLog("================================")
 			addLog("停止成功")
@@ -596,6 +615,8 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 			<-scannerDone
 			mu.Lock()
 			lastPipelineResult = result
+			status.Running = false
+			cancelPipeline = nil
 			mu.Unlock()
 			if err != nil {
 				addLog("Pipeline completed with errors: " + err.Error())
