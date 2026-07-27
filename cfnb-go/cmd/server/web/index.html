@@ -473,7 +473,7 @@ textarea:disabled{opacity:0.4;cursor:not-allowed}
 <div class="field"><label>文件路径</label><input id="gitPath" type="text" placeholder="ips.txt"></div>
 <div class="field"><label>分支</label><input id="gitBranch" type="text" placeholder="main"></div>
 </div>
-<div class="field" style="margin-top:6pt"><label>IP 格式</label><select id="gitFormat"><option value="basic">IP-端口-二字码数据中心-速度</option><option value="withProvider">IP-端口-数据中心-IP机构信息-速度</option></select></div>
+<div class="field" style="margin-top:6pt"><label>IP 格式</label><select id="gitFormat"><option value="basic">IP-端口-二字码国家-速度</option><option value="withProvider">IP-端口-二字码国家-IP机构信息-速度</option></select></div>
 <div class="segmented" style="margin-top:6pt;margin-bottom:0">
 <button class="seg-btn-plain" onclick="saveGitConfig()" style="color:var(--primary);font-weight:600">保存设置</button>
 <button class="seg-btn-plain" onclick="clearGitConfig()" style="color:var(--danger)">移除设置</button>
@@ -1018,7 +1018,6 @@ function resetToIdle() {
   running = false;
   setControlsDisabled(false);
   S('scanTimer').textContent = '--';
-  showToast('已停止');
 }
 
 function startTimer() {
@@ -1348,15 +1347,13 @@ function githubUploadFromHistory(hi) {
     var ip = n.node.split('#')[0] || n.node;
     var port = ip.indexOf(':') >= 0 ? ip.split(':')[1] : '443';
     var host = ip.indexOf(':') >= 0 ? ip.split(':')[0] : ip;
-    var colo = n.coloCode || '';
-    var cc = n.countryCode || '';
-    var dc = colo && cc ? colo : (colo || cc || '-');
+    var cc = n.countryCode || '-';
     var speed = n.speed ? n.speed.toFixed(1) + ' Mbps' : '-';
     var provider = n.provider || '-';
     if (gitFormat === 'withProvider') {
-      return host + ':' + port + '#' + dc + '-' + provider + ' ' + speed;
+      return host + ':' + port + '#' + cc + '-' + provider + ' ' + speed;
     }
-    return host + ':' + port + '#' + dc + ' ' + speed;
+    return host + ':' + port + '#' + cc + ' ' + speed;
   });
   var cfg = {
     token: S('gitToken').value,
