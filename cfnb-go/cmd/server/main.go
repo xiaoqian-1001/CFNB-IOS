@@ -400,10 +400,14 @@ func handleLocalIP(w http.ResponseWriter, r *http.Request) {
 }
 
 func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
+	var logWriter *LogWriter
 	defer func() {
 		if r := recover(); r != nil {
 			errMsg := fmt.Sprintf("管道崩溃: %v", r)
 			addLog(errMsg)
+		}
+		if logWriter != nil {
+			logWriter.Flush()
 		}
 		mu.Lock()
 		if currentRunID == runID {
@@ -515,7 +519,7 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 	outBuf := &bytes.Buffer{}
 	done := make(chan error, 1)
 
-	logWriter := NewLogWriter(func(line string) {
+	logWriter = NewLogWriter(func(line string) {
 		addLog(line)
 		updateProgressFromLog(line)
 	})
