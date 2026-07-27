@@ -179,6 +179,7 @@ textarea:disabled{opacity:0.4;cursor:not-allowed}
 .history-item{border-radius:14pt!important;padding:16pt}
 .history-item-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4pt}
 .history-item .h-time{font-size:11px;color:var(--muted2)}
+.history-item .h-duration{font-size:11px;color:var(--label);margin-left:auto;margin-right:8pt;flex-shrink:0}
 .history-item .ip{font-size:19px;font-weight:650;color:var(--primary);cursor:pointer;font-family:'SF Mono',ui-monospace,monospace;letter-spacing:-0.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;margin-bottom:6pt;user-select:none}
 .history-metrics{display:flex;flex-direction:column;gap:3pt;margin-bottom:3pt}
 .history-metrics .hm-row{display:grid;grid-template-columns:1fr 1fr;gap:4pt 12pt;position:relative}
@@ -1128,6 +1129,11 @@ function renderHistory(skipAnimation) {
     container.innerHTML = '<div class="empty-state"><svg viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="40" cy="40" r="28"/><polyline points="40 28 40 40 48 48"/><path d="M28 16l-8 8M52 16l8 8"/></svg><div class="empty-title">暂无扫描记录</div><div class="empty-desc">完成一次扫描后，结果将出现在这里</div></div>';
     return;
   }
+  function fmtDuration(s) {
+    if (!s || s <= 0) return '-';
+    if (s >= 60) return Math.floor(s / 60) + 'm ' + Math.floor(s % 60) + 's';
+    return s.toFixed(1) + 's';
+  }
   function fmtSpeed(v) {
     if (v <= 0) return '-';
     if (v >= 1) return v.toFixed(1) + ' Mb/s';
@@ -1150,7 +1156,9 @@ function renderHistory(skipAnimation) {
     var r0 = nodes[0];
     var total = nodes.length;
     html += '<div class="glass-card history-item stagger-enter">';
-    html += '<div class="history-item-top"><span class="h-time">' + escapeHtml(h.time) + '</span><div style="display:flex;gap:6pt">' +
+    html += '<div class="history-item-top"><span class="h-time">' + escapeHtml(h.time) + '</span>' +
+      '<span class="h-duration">' + fmtDuration(h.totalTime) + '</span>' +
+      '<div style="display:flex;gap:6pt">' +
       '<button class="btn-text" onclick="copyAllFromHistory(' + hi + ')" style="font-size:11px;height:26pt;padding:0 8pt">复制</button>' +
       '<button class="btn-text" onclick="deleteHistory(' + hi + ')" style="font-size:11px;height:26pt;padding:0 8pt">删除</button>' +
       '</div></div>';
@@ -1172,6 +1180,7 @@ function renderHistory(skipAnimation) {
       html += '<span class="hm">数据中心: <strong>' + dc + '</strong></span>';
       html += '<span class="hm">HTTP 抖动: <strong>' + (jitter > 0 ? jitter.toFixed(1) + ' ms' : '-') + '</strong></span>';
       html += '<span class="hm">HTTP 延迟: <strong>' + (httpLat > 0 ? httpLat.toFixed(1) + ' ms' : '-') + '</strong></span>';
+      html += '<span class="hm">厂商: <strong>' + (r0.provider || '-') + '</strong></span>';
       html += '</div></div>';
     }
     if (total > 1) {
@@ -1198,6 +1207,7 @@ function renderHistory(skipAnimation) {
       html += '<span class="hm">数据中心: <strong>' + ndc + '</strong></span>';
       html += '<span class="hm">HTTP 抖动: <strong>' + (njitter > 0 ? njitter.toFixed(1) + ' ms' : '-') + '</strong></span>';
       html += '<span class="hm">HTTP 延迟: <strong>' + (nhttpLat > 0 ? nhttpLat.toFixed(1) + ' ms' : '-') + '</strong></span>';
+      html += '<span class="hm">厂商: <strong>' + (n.provider || '-') + '</strong></span>';
       html += '</div></div></div>';
     });
     html += '</div></div>';
