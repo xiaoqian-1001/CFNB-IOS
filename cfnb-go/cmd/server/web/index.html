@@ -889,11 +889,11 @@ function startPipeline() {
   showToast('正在启动扫描...');
   fetch('/api/run', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(cfg) })
     .then(function(r) {
-      if (!r.ok) { showToast('启动失败: ' + r.status); return; }
+      if (!r.ok) { setControlsDisabled(false); showToast('启动失败: ' + r.status); return; }
       return r.json();
     })
-    .then(function(d) { if (d && !d.ok) showToast('管道正在运行中'); })
-    .catch(function(e) { showToast('启动失败: ' + e.message); });
+    .then(function(d) { if (d && !d.ok) { setControlsDisabled(false); showToast('管道正在运行中'); } })
+    .catch(function(e) { setControlsDisabled(false); showToast('启动失败: ' + e.message); });
 }
 
 function stopPipeline() {
