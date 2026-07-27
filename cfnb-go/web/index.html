@@ -87,12 +87,12 @@ textarea:disabled{opacity:0.4;cursor:not-allowed}
 .history-header .clear-btn:active{transform:scale(0.94);opacity:0.85}
 
 .local-grid{display:flex;flex-direction:column;justify-content:flex-start;gap:4pt;flex:1}
-.local-row{display:flex;align-items:center;justify-content:space-between;height:40pt;padding:0 0;border-bottom:0.5px solid rgba(60,60,67,0.08);gap:6pt}
+.local-grid{display:flex;flex-direction:column;width:100%}
+.local-row{display:flex;align-items:center;justify-content:space-between;height:40pt;padding:0 16pt;border-bottom:0.5px solid var(--glass-border);gap:6pt}
 .local-row:last-child{border-bottom:none}
 .local-row .local-label{font-size:13px;color:var(--label);letter-spacing:-0.1px;flex-shrink:0;min-width:48pt;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .local-row .local-val{font-size:14px;font-weight:500;color:var(--text);letter-spacing:-0.2px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
-.local-row .local-val.public{color:var(--primary);font-weight:600}
-.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0;min-height:20pt}
+.local-row .local-val.public{color:var(--primary);font-weight:600}.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0;min-height:20pt}
 .card-header .card-title{margin-bottom:0}
 #localIPCard{padding:20pt 16pt;border-radius:var(--radius-card);height:260pt;display:flex;flex-direction:column}
 .btn-text{height:26pt;padding:0 8pt;border-radius:13pt;border:0.5px solid var(--glass-border);background:var(--input-bg);color:var(--muted2);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;transition:transform .12s var(--ease-out),color .15s ease,background .15s ease;flex-shrink:0;font-family:inherit;gap:3pt}
@@ -239,7 +239,7 @@ textarea:disabled{opacity:0.4;cursor:not-allowed}
 .settings-group:first-child{border-top:none;padding-top:0}
 .settings-group:last-child{margin-bottom:0}
 .settings-group .sg-title{font-size:12px;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6pt;padding:0 2pt}
-.settings-row .repo-link{color:var(--primary);text-decoration:none;font-size:14px;cursor:pointer}
+.settings-row .repo-link{color:var(--primary);text-decoration:none;cursor:pointer}
 .settings-row .repo-link:hover{text-decoration:underline}
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:0.01ms!important;animation-iteration-count:1!important;transition-duration:0.01ms!important}
@@ -522,6 +522,7 @@ var running = false;
 var scanTimer = null;
 var scanStart = 0;
 var logCache = [];
+var initialLoad = true;
 
 function S(id) { return document.getElementById(id); }
 
@@ -642,10 +643,11 @@ function loadConfig() {
       document.querySelectorAll('#modeSeg .seg-btn').forEach(function(b) {
         b.classList.toggle('active', b.dataset.mode === saved.mode);
       });
-      updateModeFields();
     }
     updateToggleUI();
   } catch(e) {}
+  updateModeFields();
+  updateToggleUI();
 }
 loadConfig();
 
@@ -764,6 +766,7 @@ function importIPFile() {
       S('cfgDirectIPs').value = lines.join('\n');
       saveConfig();
       updateDirectIPCount();
+      showToast('已导入 ' + lines.length + ' 条');
     };
     reader.readAsText(file);
   };
@@ -779,6 +782,7 @@ function pasteDirectIPs() {
     ta.value = text;
     saveConfig();
     updateDirectIPCount();
+    showToast('已粘贴 ' + text.split('\n').filter(function(s) { return s.trim(); }).length + ' 条');
   }).catch(function() {
     showToast('无法读取剪贴板');
   });
@@ -794,7 +798,46 @@ function toggleDNSBlacklist() {
 
 function resetConfig() {
   localStorage.removeItem('cfnbConfig');
-  location.reload();
+  localStorage.removeItem('cfnbTheme');
+  localStorage.removeItem('cfnbHistory');
+  document.querySelectorAll('input, select, textarea').forEach(function(el) {
+    el.value = el.defaultValue;
+  });
+  document.querySelectorAll('input[type="checkbox"]').forEach(function(el) {
+    el.checked = el.defaultChecked;
+  });
+  document.querySelectorAll('#modeSeg .seg-btn').forEach(function(b, i) {
+    b.classList.toggle('active', i === 0);
+  });
+  S('cfgBandwidthSize').value = '1';
+  S('cfgCandidates').value = '150';
+  S('cfgGlobalTopN').value = '15';
+  S('cfgPerCountryTopN').value = '1';
+  S('cfgTCPProbes').value = '1';
+  S('cfgTCPWorkers').value = '300';
+  S('cfgTCPTimeout').value = '3';
+  S('cfgBWWorkers').value = '3';
+  S('cfgBWTimeout').value = '3';
+  S('cfgMinSuccessRate').value = '100';
+  S('cfgPorts').value = '443';
+  S('cfgBlockedCountries').value = 'CN';
+  S('cfgSources').value = 'https://zip.cm.edu.kg/all.txt';
+  S('cfgDirectIPs').value = '';
+  S('cfgAvailability').checked = true;
+  S('cfgHTTPTest').checked = true;
+  S('cfgPortFilter').checked = true;
+  S('cfgBlockCountry').checked = true;
+  S('cfgCFEnabled').checked = false;
+  S('cfgGitSync').checked = false;
+  S('cfgDNSBlacklist').checked = false;
+  S('cfgRiskLevel').value = '关闭';
+  S('cfgUseDirectIP').checked = false;
+  toggleDataSource();
+  updateModeFields();
+  updateToggleUI();
+  toggleDNSBlacklist();
+  updateDirectIPCount();
+  showToast('已重置');
 }
 
 function setControlsDisabled(disabled) {
@@ -843,10 +886,14 @@ function startPipeline() {
     dnsBlacklistFilter: S('cfgDNSBlacklist').checked,
     dnsRiskMaxLevel: S('cfgRiskLevel').value
   };
+  showToast('正在启动扫描...');
   fetch('/api/run', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(cfg) })
-    .then(function(r) { return r.json(); })
-    .then(function(d) { if (!d.ok) alert('管道正在运行中'); })
-    .catch(function(e) { alert('启动失败: ' + e); });
+    .then(function(r) {
+      if (!r.ok) { setControlsDisabled(false); showToast('启动失败: ' + r.status); return; }
+      return r.json();
+    })
+    .then(function(d) { if (d && !d.ok) { setControlsDisabled(false); showToast('管道正在运行中'); } })
+    .catch(function(e) { setControlsDisabled(false); showToast('启动失败: ' + e.message); });
 }
 
 function stopPipeline() {
@@ -858,14 +905,14 @@ function stopPipeline() {
     addLogLine('停止超时，已强制恢复');
   }, 3000);
   fetch('/api/stop', { method: 'POST' })
-    .then(function(r) { return r.json(); })
+    .then(function(r) { return r.ok ? r.json() : {ok: false, msg: '请求失败'}; })
     .then(function(d) {
       clearTimeout(forceTimer);
-      if (!d.ok) { alert(d.msg); btn.disabled = false; }
+      if (!d.ok) { showToast(d.msg); btn.disabled = false; }
     })
     .catch(function(e) {
       clearTimeout(forceTimer);
-      alert('终止失败: ' + e);
+      showToast('终止失败: ' + e.message);
       btn.disabled = false;
     });
 }
@@ -905,9 +952,10 @@ function updateUI(s) {
     scanStart = 0;
     setControlsDisabled(false);
     s.progress = '完成';
+    showToast('扫描完成');
     saveHistory(s.results);
-    switchTab('history');
   } else {
+    if (initialLoad) { initialLoad = false; return; }
     resetToIdle();
   }
   updateLogs(s.logs || []);
@@ -922,9 +970,8 @@ function resetToIdle() {
   scanStart = 0;
   running = false;
   setControlsDisabled(false);
-  S('logPanelWrap').style.display = 'none';
   S('scanTimer').textContent = '--';
-  S('logPanel').innerHTML = '';
+  showToast('已停止');
 }
 
 function startTimer() {
@@ -1016,7 +1063,9 @@ function renderResults(nodes) {
 }
 
 function copySingleIP(ip) {
-  navigator.clipboard.writeText(ip).then(function() {}).catch(function() {});
+  navigator.clipboard.writeText(ip).then(function() {
+    showToast('已复制 IP');
+  }).catch(function() {});
 }
 
 function copyAllIPs() {

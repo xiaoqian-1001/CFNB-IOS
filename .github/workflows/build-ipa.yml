@@ -27,8 +27,6 @@ jobs:
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           CLANG=$(xcrun --sdk iphoneos --find clang)
           
-          cp -r web/* cmd/server/web/
-          
           echo "=== Building libcfnb.a (c-archive) ==="
           CGO_ENABLED=1 GOOS=ios GOARCH=arm64 \
             CC="$CLANG -arch arm64 -isysroot $SDK_PATH -miphoneos-version-min=16.0" \
