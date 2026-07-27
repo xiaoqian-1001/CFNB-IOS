@@ -115,6 +115,7 @@ type Config struct {
 	IPTXTShowHTTPLatency bool   `json:"IP_TXT_SHOW_HTTP_LATENCY"`
 	IPTXTShowHTTPJitter  bool   `json:"IP_TXT_SHOW_HTTP_JITTER"`
 	IPTXTShowLatency     bool   `json:"IP_TXT_SHOW_LATENCY"`
+	BandwidthMinMbps     float64 `json:"BANDWIDTH_MIN_MBPS"`
 }
 
 func DefaultConfig() *Config {
@@ -225,6 +226,7 @@ func DefaultConfig() *Config {
 		IPTXTShowHTTPLatency:    false,
 		IPTXTShowHTTPJitter:     false,
 		IPTXTShowLatency:        false,
+		BandwidthMinMbps:        0,
 	}
 }
 

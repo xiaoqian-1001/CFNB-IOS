@@ -20,6 +20,7 @@ import (
 	"cfnb/pkg/ranking"
 	"cfnb/pkg/sync"
 	"cfnb/pkg/tcp"
+	"cfnb/pkg/whois"
 )
 
 type Result struct {
@@ -31,6 +32,7 @@ type Result struct {
 	HTTPJitterMap  map[string]float64
 	CountryInfo    map[string]string
 	ColoInfo       map[string]string
+	ProviderMap    map[string]string
 	TotalTime      time.Duration
 }
 
@@ -198,6 +200,19 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 	peakSpeedMap := make(map[string]float64)
 	var finalSelected []string
 
+	if len(bwResults) > 0 && cfg.BandwidthMinMbps > 0 {
+		filtered := make([]bandwidth.Result, 0, len(bwResults))
+		for _, r := range bwResults {
+			if r.Speed >= cfg.BandwidthMinMbps {
+				filtered = append(filtered, r)
+			}
+		}
+		if len(filtered) < len(bwResults) {
+			log("带宽最低阈值过滤: %d 个低于 %.1f Mbps 的节点已排除", len(bwResults)-len(filtered), cfg.BandwidthMinMbps)
+		}
+		bwResults = filtered
+	}
+
 	if len(bwResults) == 0 {
 		log("\n带宽测速多次重试仍无有效结果，将使用 TCP 筛选结果作为最终节点。")
 		notifier(fmt.Sprintf("带宽测速经 %d 轮尝试后仍无有效结果，已降级使用 TCP 排序节点。", cfg.BandwidthRetryMax), "带宽测速全部失败")
@@ -259,6 +274,45 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 		log("Git 同步未启用。")
 	}
 
+	providerMap := make(map[string]string)
+	if len(finalSelected) > 0 {
+		log("正在查询节点厂商信息...")
+		type provResult struct {
+			node string
+			prov string
+		}
+		ch := make(chan provResult, len(finalSelected))
+		workers := 8
+		if workers > len(finalSelected) {
+			workers = len(finalSelected)
+		}
+		sem := make(chan struct{}, workers)
+		for _, node := range finalSelected {
+			sem <- struct{}{}
+			go func(n string) {
+				defer func() { <-sem }()
+				ip := n
+				if idx := strings.IndexByte(n, ':'); idx >= 0 {
+					ip = n[:idx]
+				}
+				prov := whois.Lookup(ip)
+				ch <- provResult{n, prov}
+			}(node)
+		}
+		for i := 0; i < len(finalSelected); i++ {
+			r := <-ch
+			if r.prov != "" {
+				providerMap[r.node] = r.prov
+			}
+		}
+		provCount := len(providerMap)
+		if provCount > 0 {
+			log("厂商信息查询完成，共识别 %d 个节点。", provCount)
+		} else {
+			log("厂商信息查询完成，未识别到厂商信息。")
+		}
+	}
+
 	return &Result{
 		SelectedNodes:  finalSelected,
 		SpeedMap:       speedMap,
@@ -268,6 +322,7 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 		HTTPJitterMap:  httpJitterMap,
 		CountryInfo:    availCountryInfo,
 		ColoInfo:       availColoInfo,
+		ProviderMap:    providerMap,
 		TotalTime:      time.Since(startTime),
 	}, nil
 }

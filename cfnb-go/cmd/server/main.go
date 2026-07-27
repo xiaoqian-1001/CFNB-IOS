@@ -44,6 +44,7 @@ type NodeInfo struct {
 	Country     string  `json:"country"`
 	CountryCode string  `json:"countryCode"`
 	ColoCode    string  `json:"coloCode"`
+	Provider    string  `json:"provider"`
 }
 
 type PipelineResults struct {
@@ -660,6 +661,11 @@ func loadResults() {
 		if node.CountryCode == "" && node.CCTag != "" {
 			if cc, ok := coloCountryMap[node.CCTag]; ok {
 				node.CountryCode = cc
+			}
+		}
+		if lastPipelineResult != nil {
+			if p, ok := lastPipelineResult.ProviderMap[node.Node]; ok {
+				node.Provider = p
 			}
 		}
 		mu.Unlock()
