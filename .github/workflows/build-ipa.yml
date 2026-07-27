@@ -62,7 +62,7 @@ jobs:
           @end
 
           @implementation WebViewController
-          - (BOOL)prefersStatusBarHidden { return YES; }
+          - (BOOL)prefersStatusBarHidden { return NO; }
           - (BOOL)prefersHomeIndicatorAutoHidden { return YES; }
           - (void)viewDidLoad {
                 [super viewDidLoad];
@@ -189,7 +189,7 @@ jobs:
               <key>UIViewControllerBasedStatusBarAppearance</key>
               <true/>
               <key>UIStatusBarHidden</key>
-              <true/>
+              <false/>
               <key>UIRequiresFullScreen</key>
               <true/>
               <key>UILaunchScreen</key>
