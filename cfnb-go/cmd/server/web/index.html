@@ -954,7 +954,6 @@ function updateUI(s) {
     s.progress = '完成';
     showToast('扫描完成');
     saveHistory(s.results);
-    switchTab('history');
   } else {
     if (initialLoad) { initialLoad = false; return; }
     resetToIdle();
@@ -971,9 +970,7 @@ function resetToIdle() {
   scanStart = 0;
   running = false;
   setControlsDisabled(false);
-  S('logPanelWrap').style.display = 'none';
   S('scanTimer').textContent = '--';
-  S('logPanel').innerHTML = '';
   showToast('已停止');
 }
 
