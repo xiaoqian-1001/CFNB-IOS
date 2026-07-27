@@ -201,14 +201,18 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 	var finalSelected []string
 
 	if len(bwResults) > 0 && cfg.BandwidthMinMbps > 0 {
+		log("带宽最低阈值已启用: %.1f Mbps，共 %d 个节点待评估", cfg.BandwidthMinMbps, len(bwResults))
 		filtered := make([]bandwidth.Result, 0, len(bwResults))
 		for _, r := range bwResults {
 			if r.Speed >= cfg.BandwidthMinMbps {
 				filtered = append(filtered, r)
 			}
 		}
-		if len(filtered) < len(bwResults) {
-			log("带宽最低阈值过滤: %d 个低于 %.1f Mbps 的节点已排除", len(bwResults)-len(filtered), cfg.BandwidthMinMbps)
+		excluded := len(bwResults) - len(filtered)
+		if excluded > 0 {
+			log("带宽最低阈值过滤: %d 个节点低于 %.1f Mbps 已排除，剩余 %d 个节点", excluded, cfg.BandwidthMinMbps, len(filtered))
+		} else {
+			log("带宽最低阈值过滤: 所有 %d 个节点均满足要求，无节点被排除", len(bwResults))
 		}
 		bwResults = filtered
 	}

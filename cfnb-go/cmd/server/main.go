@@ -237,6 +237,7 @@ type RunConfig struct {
 	MinSuccessRate         float64  `json:"minSuccessRate"`
 	BandwidthWorkers       int      `json:"bandwidthWorkers"`
 	BandwidthTimeout       float64  `json:"bandwidthTimeout"`
+	BandwidthMinMbps       float64  `json:"bandwidthMinMbps"`
 	TestAvailability       *bool    `json:"testAvailability"`
 	HTTPTestEnabled        *bool    `json:"httpTestEnabled"`
 	SourceURLs             []string `json:"sourceURLs"`
@@ -445,6 +446,10 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 	}
 	if rc.BandwidthTimeout > 0 {
 		cfg.BandwidthTimeout = rc.BandwidthTimeout
+	}
+	if rc.BandwidthMinMbps > 0 {
+		cfg.BandwidthMinMbps = rc.BandwidthMinMbps
+		addLog(fmt.Sprintf("带宽最低阈值已启用: %.1f Mbps", rc.BandwidthMinMbps))
 	}
 	if rc.Mode == "percountry" {
 		cfg.UseGlobalMode = false

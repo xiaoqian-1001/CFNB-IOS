@@ -407,6 +407,17 @@ textarea:disabled{opacity:0.4;cursor:not-allowed}
 </div>
 <div class="row" style="margin-top:8px">
 <div class="field"><label>测速超时(s)</label><input type="number" id="cfgBWTimeout" value="3" min="1" max="30" step="0.5"></div>
+<div class="field"><label>风险等级</label><select id="cfgRiskLevel" class="cfg-select" onchange="saveConfig()">
+<option value="关闭">关闭</option>
+<option value="极度纯净">极度纯净</option>
+<option value="纯净">纯净</option>
+<option value="轻微风险">轻微风险</option>
+<option value="高风险">高风险</option>
+<option value="极度危险">极度危险</option>
+</select></div>
+</div>
+<div class="row" style="margin-top:8px">
+<div class="field"><label>最低带宽(Mbps)</label><input type="number" id="cfgBWMinMbps" value="0" min="0" max="100" step="0.5"></div>
 <div class="field"><label>最低成功率</label><input type="number" id="cfgMinSuccessRate" value="100" min="1" max="100"></div>
 </div>
 </div>
@@ -466,14 +477,9 @@ textarea:disabled{opacity:0.4;cursor:not-allowed}
 </div>
 </div>
 <div class="settings-row">
-<div class="sl-label">风险等级</div>
+<div class="sl-label">IP机构信息</div>
 <div class="sl-right">
-<select id="cfgRiskLevel" class="cfg-select" onchange="saveConfig()">
-<option value="关闭">关闭</option>
-<option value="低风险">低风险</option>
-<option value="中风险">中风险</option>
-<option value="高风险">高风险</option>
-</select>
+<div class="toggle-wrap"><div class="toggle-track on" id="whoisTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="cfgWhois" checked></div></div>
 </div>
 </div>
 </div>
@@ -1157,7 +1163,6 @@ function renderHistory(skipAnimation) {
     var total = nodes.length;
     html += '<div class="glass-card history-item stagger-enter">';
     html += '<div class="history-item-top"><span class="h-time">' + escapeHtml(h.time) + '</span>' +
-      '<span class="h-duration">' + fmtDuration(h.totalTime) + '</span>' +
       '<div style="display:flex;gap:6pt">' +
       '<button class="btn-text" onclick="copyAllFromHistory(' + hi + ')" style="font-size:11px;height:26pt;padding:0 8pt">复制</button>' +
       '<button class="btn-text" onclick="deleteHistory(' + hi + ')" style="font-size:11px;height:26pt;padding:0 8pt">删除</button>' +
@@ -1180,8 +1185,8 @@ function renderHistory(skipAnimation) {
       html += '<span class="hm">数据中心: <strong>' + dc + '</strong></span>';
       html += '<span class="hm">HTTP 抖动: <strong>' + (jitter > 0 ? jitter.toFixed(1) + ' ms' : '-') + '</strong></span>';
       html += '<span class="hm">HTTP 延迟: <strong>' + (httpLat > 0 ? httpLat.toFixed(1) + ' ms' : '-') + '</strong></span>';
-      html += '<span class="hm">厂商: <strong>' + (r0.provider || '-') + '</strong></span>';
       html += '</div></div>';
+      html += '<div style="font-size:12px;color:var(--label);margin-top:4pt;letter-spacing:-0.1px">IP机构信息: <strong style="font-weight:590;color:var(--text)">' + (r0.provider || '-') + '</strong></div>';
     }
     if (total > 1) {
       html += '<div class="h-expand-bar"><div class="segmented"><button class="seg-btn" onclick="toggleHistoryExpand(' + hi + ')"><span>展开全部 | ' + total + '</span></button><button class="seg-btn" onclick="dnsUploadFromHistory(' + hi + ')">DNS上传</button><button class="seg-btn" onclick="githubUploadFromHistory(' + hi + ')">GIT上传</button></div></div>';
@@ -1207,8 +1212,9 @@ function renderHistory(skipAnimation) {
       html += '<span class="hm">数据中心: <strong>' + ndc + '</strong></span>';
       html += '<span class="hm">HTTP 抖动: <strong>' + (njitter > 0 ? njitter.toFixed(1) + ' ms' : '-') + '</strong></span>';
       html += '<span class="hm">HTTP 延迟: <strong>' + (nhttpLat > 0 ? nhttpLat.toFixed(1) + ' ms' : '-') + '</strong></span>';
-      html += '<span class="hm">厂商: <strong>' + (n.provider || '-') + '</strong></span>';
-      html += '</div></div></div>';
+      html += '</div></div>';
+      html += '<div style="font-size:11px;color:var(--label);margin-top:2pt;letter-spacing:-0.1px">IP机构信息: <strong style="font-weight:590;color:var(--text);font-size:11px">' + (n.provider || '-') + '</strong></div>';
+      html += '</div>';
     });
     html += '</div></div>';
   });
