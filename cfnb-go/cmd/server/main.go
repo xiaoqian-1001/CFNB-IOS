@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -556,19 +555,12 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 			n, err := syscall.Read(fd, buf)
 			if err != nil {
 				if err == syscall.EAGAIN || err == syscall.EWOULDBLOCK {
-					runtime.Gosched()
+					time.Sleep(10 * time.Millisecond)
 					continue
 				}
 				break
 			}
 			if n == 0 {
-				if len(leftover) > 0 {
-					line := strings.TrimRight(string(leftover), "\r")
-					if line != "" {
-						addLog(line)
-						updateProgressFromLog(line)
-					}
-				}
 				break
 			}
 			data := append(leftover, buf[:n]...)
@@ -588,8 +580,13 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 			}
 			leftover = data
 		}
-		pr.Close()
-		scannerDone <- struct{}{}
+		if len(leftover) > 0 {
+			line := strings.TrimRight(string(leftover), "\r")
+			if line != "" {
+				addLog(line)
+				updateProgressFromLog(line)
+			}
+		}
 	}()
 
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -634,8 +631,8 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 			} else {
 				addLog("================================")
 				addLog("Pipeline completed successfully!")
-				loadResults()
 			}
+			loadResults()
 			return
 		}
 	}
