@@ -111,7 +111,7 @@ func TestAll(ctx context.Context, nodes []string, timeout float64, probes int, m
 
 	var allResults []TCPResult
 	completed := 0
-	nextThreshold := 25
+	nextThreshold := 10
 	for r := range results {
 		if ctx.Err() != nil {
 			break
@@ -123,7 +123,7 @@ func TestAll(ctx context.Context, nodes []string, timeout float64, probes int, m
 		progress := 100 * completed / total
 		if progress >= nextThreshold || completed == total {
 			fmt.Printf("\n进度：%d/%d (%d%%)", completed, total, progress)
-			nextThreshold += 25
+			nextThreshold += 10
 		}
 	}
 	fmt.Println("\nTCP 测试完成！")
