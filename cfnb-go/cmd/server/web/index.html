@@ -644,9 +644,10 @@ function loadConfig() {
         b.classList.toggle('active', b.dataset.mode === saved.mode);
       });
     }
-    updateModeFields();
     updateToggleUI();
   } catch(e) {}
+  updateModeFields();
+  updateToggleUI();
 }
 loadConfig();
 

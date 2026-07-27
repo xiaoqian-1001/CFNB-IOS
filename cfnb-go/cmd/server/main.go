@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -553,7 +554,14 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 		var leftover []byte
 		for {
 			n, err := syscall.Read(fd, buf)
-			if err != nil || n == 0 {
+			if err != nil {
+				if err == syscall.EAGAIN || err == syscall.EWOULDBLOCK {
+					runtime.Gosched()
+					continue
+				}
+				break
+			}
+			if n == 0 {
 				if len(leftover) > 0 {
 					line := strings.TrimRight(string(leftover), "\r")
 					if line != "" {
