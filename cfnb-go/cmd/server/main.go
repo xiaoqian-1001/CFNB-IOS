@@ -920,9 +920,9 @@ func (w *LogWriter) flushLines() {
 func addLog(msg string) {
 	mu.Lock()
 	status.Logs = append(status.Logs, msg)
-	if len(status.Logs) > 200 {
-		tail := make([]string, 200)
-		copy(tail, status.Logs[len(status.Logs)-200:])
+	if len(status.Logs) > 1000 {
+		tail := make([]string, 1000)
+		copy(tail, status.Logs[len(status.Logs)-1000:])
 		status.Logs = tail
 	}
 	mu.Unlock()
