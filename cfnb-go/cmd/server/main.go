@@ -208,14 +208,7 @@ func handleEvents(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-ch:
-			mu.Lock()
-			currentLogs := len(status.Logs)
-			mu.Unlock()
-			if currentLogs > lastSent {
-				if sendStatus() {
-					lastSent = currentLogs
-				}
-			}
+			sendStatus()
 		case <-ticker.C:
 			mu.Lock()
 			currentLogs := len(status.Logs)
