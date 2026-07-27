@@ -1307,7 +1307,10 @@ function dnsUploadFromHistory(hi) {
   if (localStorage.getItem('cfnbDnsEnabled') !== '1') { showToast('请先开启 DNS 上传并配置参数'); switchTab('settings'); return; }
   var nodes = (h.results && h.results.nodes) ? h.results.nodes : [];
   if (!nodes.length) { showToast('该次扫描没有可用的结果'); return; }
-  var ips = nodes.map(function(n) { return n.node.split('#')[0] || n.node; });
+  var ips = nodes.map(function(n) {
+    var raw = n.node.split('#')[0] || n.node;
+    return raw.indexOf(':') >= 0 ? raw.split(':')[0] : raw;
+  });
   var cfg = {
     token: S('dnsToken').value,
     zone: S('dnsZone').value,
