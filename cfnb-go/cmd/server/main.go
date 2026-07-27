@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"cfnb/pkg/config"
@@ -510,18 +509,13 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 		}
 	}
 
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		addLog("错误: 无法创建管道: " + err.Error())
-		return
-	}
-
-	oldStdout := os.Stdout
-	os.Stdout = pw
-
 	outBuf := &bytes.Buffer{}
 	done := make(chan error, 1)
-	scannerDone := make(chan struct{}, 1)
+
+	logWriter := NewLogWriter(func(line string) {
+		addLog(line)
+		updateProgressFromLog(line)
+	})
 
 	var result *pipeline.Result
 	go func() {
@@ -531,62 +525,9 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 				done <- err
 			}
 		}()
-		defer func() {
-			pw.Close()
-			os.Stdout = oldStdout
-		}()
-		r, err := pipeline.Run(ctx, cfg, io.MultiWriter(pw, outBuf))
+		r, err := pipeline.Run(ctx, cfg, io.MultiWriter(logWriter, outBuf))
 		result = r
 		done <- err
-	}()
-
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				addLog(fmt.Sprintf("扫描器崩溃: %v", r))
-			}
-			pr.Close()
-			scannerDone <- struct{}{}
-		}()
-		fd := int(pr.Fd())
-		buf := make([]byte, 4096)
-		var leftover []byte
-		for {
-			n, err := syscall.Read(fd, buf)
-			if err != nil {
-				if err == syscall.EAGAIN || err == syscall.EWOULDBLOCK {
-					time.Sleep(10 * time.Millisecond)
-					continue
-				}
-				break
-			}
-			if n == 0 {
-				break
-			}
-			data := append(leftover, buf[:n]...)
-			for {
-				idx := bytes.IndexByte(data, '\n')
-				if idx < 0 {
-					leftover = data
-					break
-				}
-				line := string(data[:idx])
-				data = data[idx+1:]
-				line = strings.TrimRight(line, "\r")
-				if line != "" {
-					addLog(line)
-					updateProgressFromLog(line)
-				}
-			}
-			leftover = data
-		}
-		if len(leftover) > 0 {
-			line := strings.TrimRight(string(leftover), "\r")
-			if line != "" {
-				addLog(line)
-				updateProgressFromLog(line)
-			}
-		}
 	}()
 
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -597,10 +538,7 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 	for {
 		select {
 		case <-ctx.Done():
-			pw.Close()
-			os.Stdout = oldStdout
 			<-done
-			<-scannerDone
 			mu.Lock()
 			lastPipelineResult = result
 			status.Running = false
@@ -620,7 +558,6 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 			if output != lastOutput {
 				lastOutput = output
 			}
-			<-scannerDone
 			mu.Lock()
 			lastPipelineResult = result
 			status.Running = false
@@ -758,6 +695,34 @@ func loadResults() {
 	status.Results = results
 	mu.Unlock()
 	broadcast()
+}
+
+type LogWriter struct {
+	mu       sync.Mutex
+	buf      []byte
+	callback func(string)
+}
+
+func NewLogWriter(callback func(string)) *LogWriter {
+	return &LogWriter{callback: callback}
+}
+
+func (w *LogWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.buf = append(w.buf, p...)
+	for {
+		idx := bytes.IndexByte(w.buf, '\n')
+		if idx < 0 {
+			break
+		}
+		line := strings.TrimRight(string(w.buf[:idx]), "\r")
+		w.buf = w.buf[idx+1:]
+		if line != "" {
+			w.callback(line)
+		}
+	}
+	return len(p), nil
 }
 
 func addLog(msg string) {
