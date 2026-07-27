@@ -290,7 +290,9 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 		rc.PreFilterPorts, boolPtrVal(rc.PreFilterPortEnabled), rc.PreFilterBlockedCountries, boolPtrVal(rc.PreFilterBlockedEnabled)))
 
 	ctx, cancel := context.WithCancel(context.Background())
+	mu.Lock()
 	cancelPipeline = cancel
+	mu.Unlock()
 
 	go runPipeline(ctx, rc, runID)
 
@@ -307,9 +309,10 @@ func handleStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stopRunID := status.RunID
+	cancel := cancelPipeline
 	mu.Unlock()
-	if cancelPipeline != nil {
-		cancelPipeline()
+	if cancel != nil {
+		cancel()
 		mu.Lock()
 		status.Running = false
 		status.Progress = "已停止"
@@ -539,6 +542,7 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 		select {
 		case <-ctx.Done():
 			<-done
+			logWriter.Flush()
 			mu.Lock()
 			lastPipelineResult = result
 			status.Running = false
@@ -558,6 +562,7 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 			if output != lastOutput {
 				lastOutput = output
 			}
+			logWriter.Flush()
 			mu.Lock()
 			lastPipelineResult = result
 			status.Running = false
@@ -711,6 +716,17 @@ func (w *LogWriter) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.buf = append(w.buf, p...)
+	w.flushLines()
+	return len(p), nil
+}
+
+func (w *LogWriter) Flush() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.flushLines()
+}
+
+func (w *LogWriter) flushLines() {
 	for {
 		idx := bytes.IndexByte(w.buf, '\n')
 		if idx < 0 {
@@ -722,7 +738,6 @@ func (w *LogWriter) Write(p []byte) (int, error) {
 			w.callback(line)
 		}
 	}
-	return len(p), nil
 }
 
 func addLog(msg string) {
