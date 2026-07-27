@@ -519,6 +519,29 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 
 	var result *pipeline.Result
 	go func() {
+		oldStdout := os.Stdout
+		pr, pw, _ := os.Pipe()
+		os.Stdout = pw
+		defer func() {
+			pw.Close()
+			os.Stdout = oldStdout
+		}()
+
+		go func() {
+			defer pr.Close()
+			buf := make([]byte, 4096)
+			for {
+				n, err := pr.Read(buf)
+				if n > 0 {
+					logWriter.Write(buf[:n])
+					oldStdout.Write(buf[:n])
+				}
+				if err != nil {
+					return
+				}
+			}
+		}()
+
 		defer func() {
 			if r := recover(); r != nil {
 				err := fmt.Errorf("pipeline panic: %v", r)
