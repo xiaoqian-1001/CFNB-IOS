@@ -52,6 +52,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text'
 .seg-btn:active{transform:scale(0.95)}
 .seg-btn.active{background:var(--primary);color:#FFFFFF;font-weight:600;box-shadow:0 2px 8px rgba(0,119,237,0.28)}
 [data-theme="dark"] .seg-btn.active{box-shadow:0 2px 8px rgba(0,119,237,0.28)}
+.seg-btn-plain{flex:1;padding:6pt 6pt;border:0.5px solid var(--glass-border);border-radius:8pt;background:transparent;font-size:13px;font-weight:500;cursor:pointer;color:var(--text);transition:transform .35s var(--ease-spring),color .25s ease;font-family:inherit;line-height:1.3;letter-spacing:-0.1px;will-change:transform}
+.seg-btn-plain:active{transform:scale(0.95)}
 
 .field{margin-bottom:8px;width:100%}
 .field:last-child{margin-bottom:0}
@@ -430,6 +432,54 @@ textarea:disabled{opacity:0.4;cursor:not-allowed}
 </div>
 </div>
 </div>
+
+<div class="glass-card material-regular">
+<div class="card-title">DNS 上传</div>
+<div style="border-top:0.5px solid var(--glass-border);margin:8pt 0 6pt 0"></div>
+<div class="settings-row">
+<div class="sl-label">启用 DNS 上传</div>
+<div class="sl-right">
+<div class="toggle-wrap"><div class="toggle-track" id="dnsEnableTrack" onclick="toggleDnsEnable()"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="dnsEnableToggle"></div></div>
+</div>
+</div>
+<div id="dnsConfigFields" style="display:none">
+<div class="field" style="margin-top:6pt"><label>API Token</label><input id="dnsToken" type="password" placeholder="Cloudflare API Token"></div>
+<div class="field" style="margin-top:6pt"><label>Zone ID</label><input id="dnsZone" type="text" placeholder="Zone ID"></div>
+<div class="field" style="margin-top:6pt"><label>子域名前缀</label><input id="dnsSubdomain" type="text" placeholder="例: cf"></div>
+<div class="row" style="margin-top:6pt">
+<div class="field"><label>上传数量</label><input id="dnsCount" type="number" value="3"></div>
+<div class="field"><label>记录类型</label><select id="dnsRecordType"><option value="A">A 记录</option><option value="TXT">TXT 记录</option></select></div>
+</div>
+<div class="segmented" style="margin-top:6pt;margin-bottom:0">
+<button class="seg-btn-plain" onclick="saveDnsConfig()" style="color:var(--primary);font-weight:600">保存设置</button>
+<button class="seg-btn-plain" onclick="clearDnsConfig()" style="color:var(--danger)">移除设置</button>
+</div>
+</div>
+</div>
+
+<div class="glass-card material-regular">
+<div class="card-title">GIT 上传</div>
+<div style="border-top:0.5px solid var(--glass-border);margin:8pt 0 6pt 0"></div>
+<div class="settings-row">
+<div class="sl-label">启用 GIT 上传</div>
+<div class="sl-right">
+<div class="toggle-wrap"><div class="toggle-track" id="gitEnableTrack" onclick="toggleGitEnable()"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="gitEnableToggle"></div></div>
+</div>
+</div>
+<div id="gitConfigFields" style="display:none">
+<div class="field" style="margin-top:6pt"><label>GitHub Token</label><input id="gitToken" type="password" placeholder="Personal Access Token"></div>
+<div class="field" style="margin-top:6pt"><label>仓库 (owner/repo)</label><input id="gitRepo" type="text" placeholder="例: user/my-ips"></div>
+<div class="row" style="margin-top:6pt">
+<div class="field"><label>文件路径</label><input id="gitPath" type="text" placeholder="ips.txt"></div>
+<div class="field"><label>分支</label><input id="gitBranch" type="text" placeholder="main"></div>
+</div>
+<div class="field" style="margin-top:6pt"><label>IP 格式</label><select id="gitFormat"><option value="basic">IP-端口-数据中心-速度</option><option value="withProvider">IP-端口-数据中心-IP机构信息-速度</option></select></div>
+<div class="segmented" style="margin-top:6pt;margin-bottom:0">
+<button class="seg-btn-plain" onclick="saveGitConfig()" style="color:var(--primary);font-weight:600">保存设置</button>
+<button class="seg-btn-plain" onclick="clearGitConfig()" style="color:var(--danger)">移除设置</button>
+</div>
+</div>
+</div>
 <div class="glass-card material-regular">
 <div class="card-title">筛选开关</div>
 <div style="border-top:0.5px solid var(--glass-border);margin:8pt 0 6pt 0"></div>
@@ -480,6 +530,12 @@ textarea:disabled{opacity:0.4;cursor:not-allowed}
 <div class="sl-label">IP机构信息</div>
 <div class="sl-right">
 <div class="toggle-wrap"><div class="toggle-track on" id="whoisTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="cfgWhois" checked></div></div>
+</div>
+</div>
+<div class="settings-row">
+<div class="sl-label">IPv6 过滤</div>
+<div class="sl-right">
+<div class="toggle-wrap"><div class="toggle-track" id="ipv6FilterTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="cfgIPv6Filter"></div></div>
 </div>
 </div>
 </div>
@@ -601,7 +657,8 @@ function saveConfig() {
     cfEnabled: S('cfgCFEnabled').checked,
     gitSyncEnabled: S('cfgGitSync').checked,
     dnsBlacklist: S('cfgDNSBlacklist').checked,
-    riskLevel: S('cfgRiskLevel').value
+    riskLevel: S('cfgRiskLevel').value,
+    ipv6FilterEnabled: S('cfgIPv6Filter').checked
   };
   localStorage.setItem('cfnbConfig', JSON.stringify(cfg));
 }
@@ -646,6 +703,7 @@ function loadConfig() {
       toggleDNSBlacklist();
     }
     if (saved.riskLevel) S('cfgRiskLevel').value = saved.riskLevel;
+    if (saved.ipv6FilterEnabled !== undefined) S('cfgIPv6Filter').checked = saved.ipv6FilterEnabled;
     if (saved.mode) {
       document.querySelectorAll('#modeSeg .seg-btn').forEach(function(b) {
         b.classList.toggle('active', b.dataset.mode === saved.mode);
@@ -659,7 +717,7 @@ function loadConfig() {
 loadConfig();
 
 function updateToggleUI() {
-  ['cfgAvailability','cfgHTTPTest','cfgPortFilter','cfgBlockCountry','cfgUseDirectIP','cfgCFEnabled','cfgGitSync'].forEach(function(id) {
+  ['cfgAvailability','cfgHTTPTest','cfgPortFilter','cfgBlockCountry','cfgUseDirectIP','cfgCFEnabled','cfgGitSync','cfgIPv6Filter'].forEach(function(id) {
     var t = S(id);
     if (t) t.closest('.toggle-track').classList.toggle('on', t.checked);
   });
@@ -837,6 +895,7 @@ function resetConfig() {
   S('cfgCFEnabled').checked = false;
   S('cfgGitSync').checked = false;
   S('cfgDNSBlacklist').checked = false;
+  S('cfgIPv6Filter').checked = false;
   S('cfgRiskLevel').value = '关闭';
   S('cfgUseDirectIP').checked = false;
   toggleDataSource();
@@ -848,7 +907,7 @@ function resetConfig() {
 }
 
 function setControlsDisabled(disabled) {
-  var ids = ['cfgBandwidthSize','cfgCandidates','cfgGlobalTopN','cfgPerCountryTopN','cfgTCPProbes','cfgTCPWorkers','cfgTCPTimeout','cfgBWWorkers','cfgBWTimeout','cfgMinSuccessRate','cfgPorts','cfgBlockedCountries','cfgSources','cfgDirectIPs','cfgUseDirectIP','cfgAvailability','cfgHTTPTest','cfgPortFilter','cfgBlockCountry','cfgCFEnabled','cfgGitSync','cfgDNSBlacklist','cfgRiskLevel'];
+  var ids = ['cfgBandwidthSize','cfgCandidates','cfgGlobalTopN','cfgPerCountryTopN','cfgTCPProbes','cfgTCPWorkers','cfgTCPTimeout','cfgBWWorkers','cfgBWTimeout','cfgMinSuccessRate','cfgPorts','cfgBlockedCountries','cfgSources','cfgDirectIPs','cfgUseDirectIP','cfgAvailability','cfgHTTPTest','cfgPortFilter','cfgBlockCountry','cfgCFEnabled','cfgGitSync','cfgDNSBlacklist','cfgRiskLevel','cfgIPv6Filter'];
   ids.forEach(function(id) {
     var el = S(id);
     if (el) el.disabled = disabled;
@@ -891,7 +950,8 @@ function startPipeline() {
     cfEnabled: S('cfgCFEnabled').checked,
     gitSyncEnabled: S('cfgGitSync').checked,
     dnsBlacklistFilter: S('cfgDNSBlacklist').checked,
-    dnsRiskMaxLevel: S('cfgRiskLevel').value
+    dnsRiskMaxLevel: S('cfgRiskLevel').value,
+    ipv6FilterEnabled: S('cfgIPv6Filter').checked
   };
   showToast('正在启动扫描...');
   fetch('/api/run', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(cfg) })
@@ -1255,11 +1315,148 @@ function copyAllFromHistory(hi) {
     var dc = colo && cc ? colo + '-' + cc : (colo || cc || n.country || '');
     return ip + '#' + dc;
   }).join('\n');
-  navigator.clipboard.writeText(text).then(function() {}).catch(function() {});
+  navigator.clipboard.writeText(text).then(function() {
+    showToast('已复制所有 IP');
+  }).catch(function() {});
 }
 
-function dnsUploadFromHistory(hi) {}
-function githubUploadFromHistory(hi) {}
+function dnsUploadFromHistory(hi) {
+  var history = [];
+  try { history = JSON.parse(localStorage.getItem('cfnbHistory') || '[]'); } catch(e) {}
+  var h = history[hi];
+  if (!h) return;
+  if (localStorage.getItem('cfnbDnsEnabled') !== '1') { showToast('请先开启 DNS 上传并配置参数'); switchTab('settings'); return; }
+  var nodes = (h.results && h.results.nodes) ? h.results.nodes : [];
+  if (!nodes.length) { showToast('该次扫描没有可用的结果'); return; }
+  var ips = nodes.map(function(n) { return n.node.split('#')[0] || n.node; });
+  var cfg = {
+    token: S('dnsToken').value,
+    zone: S('dnsZone').value,
+    subdomain: S('dnsSubdomain').value,
+    count: parseInt(S('dnsCount').value) || 3,
+    recordType: S('dnsRecordType').value
+  };
+  if (!cfg.token || !cfg.zone || !cfg.subdomain) { showToast('请先在设置中配置 DNS 参数'); switchTab('settings'); return; }
+  showToast('正在上传 DNS 记录...');
+  var x = new XMLHttpRequest();
+  x.open('POST', '/api/dns-upload', true);
+  x.setRequestHeader('Content-Type', 'application/json');
+  x.onload = function() {
+    if (x.status === 200) {
+      var d = JSON.parse(x.responseText);
+      showToast('DNS 上传完成: ' + d.count + ' 条');
+    } else {
+      showToast('DNS 上传失败');
+    }
+  };
+  x.send(JSON.stringify({ips: ips, token: cfg.token, zone: cfg.zone, subdomain: cfg.subdomain, count: cfg.count, recordType: cfg.recordType}));
+}
+
+function githubUploadFromHistory(hi) {
+  var history = [];
+  try { history = JSON.parse(localStorage.getItem('cfnbHistory') || '[]'); } catch(e) {}
+  var h = history[hi];
+  if (!h) return;
+  if (localStorage.getItem('cfnbGitEnabled') !== '1') { showToast('请先开启 GIT 上传并配置参数'); switchTab('settings'); return; }
+  var nodes = (h.results && h.results.nodes) ? h.results.nodes : [];
+  if (!nodes.length) { showToast('该次扫描没有可用的结果'); return; }
+  var repo = S('gitRepo').value.trim();
+  repo = repo.replace(/^https?:\/\/github\.com\//,'').replace(/\.git$/,'');
+  if (!S('gitToken').value.trim() || repo.split('/').length !== 2) { showToast('请先配置 GIT 参数'); switchTab('settings'); return; }
+  var gitFormat = S('gitFormat').value;
+  var ips = nodes.map(function(n) {
+    var ip = n.node.split('#')[0] || n.node;
+    var port = ip.indexOf(':') >= 0 ? ip.split(':')[1] : '443';
+    var host = ip.indexOf(':') >= 0 ? ip.split(':')[0] : ip;
+    var colo = n.coloCode || '';
+    var cc = n.countryCode || '';
+    var dc = colo && cc ? colo + '-' + cc : (colo || cc || n.country || '-');
+    var speed = n.speed ? n.speed.toFixed(1) + ' Mbps' : '-';
+    var provider = n.provider || '-';
+    if (gitFormat === 'withProvider') {
+      return host + ':' + port + '#' + dc + '#' + provider + '#' + speed;
+    }
+    return host + ':' + port + '#' + dc + '#' + speed;
+  });
+  var cfg = {
+    token: S('gitToken').value,
+    repo: repo,
+    path: S('gitPath').value || 'ips.txt',
+    branch: S('gitBranch').value || 'main',
+    format: gitFormat
+  };
+  showToast('正在上传到 GitHub...');
+  var x = new XMLHttpRequest();
+  x.open('POST', '/api/github-upload', true);
+  x.setRequestHeader('Content-Type', 'application/json');
+  x.onload = function() {
+    if (x.status === 200) {
+      var d = JSON.parse(x.responseText);
+      showToast('GIT 上传完成: ' + d.count + ' 条');
+    } else {
+      showToast('GIT 上传失败');
+    }
+  };
+  x.send(JSON.stringify({token: cfg.token, repo: cfg.repo, path: cfg.path, branch: cfg.branch, ips: ips, format: cfg.format}));
+}
+
+function toggleDnsEnable() {
+  var on = S('dnsEnableTrack').classList.toggle('on');
+  S('dnsEnableToggle').checked = on;
+  S('dnsConfigFields').style.display = on ? '' : 'none';
+  localStorage.setItem('cfnbDnsEnabled', on ? '1' : '0');
+}
+
+function toggleGitEnable() {
+  var on = S('gitEnableTrack').classList.toggle('on');
+  S('gitEnableToggle').checked = on;
+  S('gitConfigFields').style.display = on ? '' : 'none';
+  localStorage.setItem('cfnbGitEnabled', on ? '1' : '0');
+}
+
+function saveDnsConfig() {
+  var data = {
+    token: S('dnsToken').value,
+    zone: S('dnsZone').value,
+    subdomain: S('dnsSubdomain').value,
+    count: S('dnsCount').value,
+    recordType: S('dnsRecordType').value
+  };
+  localStorage.setItem('cfnbDnsConfig', JSON.stringify(data));
+  showToast('DNS 设置已保存');
+}
+
+function clearDnsConfig() {
+  S('dnsToken').value = '';
+  S('dnsZone').value = '';
+  S('dnsSubdomain').value = '';
+  S('dnsCount').value = '3';
+  S('dnsRecordType').value = 'A';
+  localStorage.removeItem('cfnbDnsConfig');
+  showToast('DNS 设置已移除');
+}
+
+function saveGitConfig() {
+  var data = {
+    token: S('gitToken').value,
+    repo: S('gitRepo').value,
+    path: S('gitPath').value,
+    branch: S('gitBranch').value,
+    format: S('gitFormat').value
+  };
+  localStorage.setItem('cfnbGitConfig', JSON.stringify(data));
+  showToast('Git 设置已保存');
+}
+
+function clearGitConfig() {
+  S('gitToken').value = '';
+  S('gitRepo').value = '';
+  S('gitPath').value = '';
+  S('gitBranch').value = '';
+  S('gitFormat').value = 'basic';
+  localStorage.removeItem('cfnbGitConfig');
+  showToast('Git 设置已移除');
+}
 
 function deleteHistory(idx) {
   var history = [];
@@ -1267,6 +1464,7 @@ function deleteHistory(idx) {
   history.splice(idx, 1);
   localStorage.setItem('cfnbHistory', JSON.stringify(history));
   renderHistory(true);
+  showToast('已删除');
 }
 
 function clearHistory() {
@@ -1306,10 +1504,40 @@ function loadTheme() {
 }
 loadTheme();
 
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
-  var saved = localStorage.getItem('cfnbTheme') || 'dark';
-  if (saved === 'system') applyTheme('system');
-});
+// Init DNS toggle from storage
+if (localStorage.getItem('cfnbDnsEnabled') === '1') {
+  S('dnsEnableTrack').classList.add('on');
+  S('dnsEnableToggle').checked = true;
+  S('dnsConfigFields').style.display = '';
+}
+// Init GIT toggle from storage
+if (localStorage.getItem('cfnbGitEnabled') === '1') {
+  S('gitEnableTrack').classList.add('on');
+  S('gitEnableToggle').checked = true;
+  S('gitConfigFields').style.display = '';
+}
+// Restore DNS config from storage
+try {
+  var dns = JSON.parse(localStorage.getItem('cfnbDnsConfig'));
+  if (dns) {
+    if (dns.token) S('dnsToken').value = dns.token;
+    if (dns.zone) S('dnsZone').value = dns.zone;
+    if (dns.subdomain) S('dnsSubdomain').value = dns.subdomain;
+    if (dns.count) S('dnsCount').value = dns.count;
+    if (dns.recordType) S('dnsRecordType').value = dns.recordType;
+  }
+} catch(e) {}
+// Restore Git config from storage
+try {
+  var git = JSON.parse(localStorage.getItem('cfnbGitConfig'));
+  if (git) {
+    if (git.token) S('gitToken').value = git.token;
+    if (git.repo) S('gitRepo').value = git.repo;
+    if (git.path) S('gitPath').value = git.path;
+    if (git.branch) S('gitBranch').value = git.branch;
+    if (git.format) S('gitFormat').value = git.format;
+  }
+} catch(e) {}
 
 connectSSE();
 fetchLocalIP();

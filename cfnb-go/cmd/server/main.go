@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"cfnb/pkg/cloudflare"
 	"cfnb/pkg/config"
 	"cfnb/pkg/pipeline"
 )
@@ -71,6 +73,8 @@ func RunServer(port string) {
 	http.HandleFunc("/api/status", middlewareCORS(handleStatus))
 	http.HandleFunc("/api/stop", middlewareCORS(handleStop))
 	http.HandleFunc("/api/local-ip", middlewareCORS(handleLocalIP))
+	http.HandleFunc("/api/dns-upload", middlewareCORS(handleDnsUpload))
+	http.HandleFunc("/api/github-upload", middlewareCORS(handleGithubUpload))
 
 	fmt.Printf("CFNB Web Dashboard starting on :%s\n", port)
 	fmt.Fprintf(os.Stderr, "CFNB Web Dashboard starting on :%s\n", port)
@@ -251,6 +255,7 @@ type RunConfig struct {
 	GitSyncEnabled           *bool    `json:"gitSyncEnabled"`
 	DNSBlacklistFilter       *bool    `json:"dnsBlacklistFilter"`
 	DNSRiskMaxLevel          string   `json:"dnsRiskMaxLevel"`
+	IPv6FilterEnabled        *bool    `json:"ipv6FilterEnabled"`
 }
 
 func handleRun(w http.ResponseWriter, r *http.Request) {
@@ -394,6 +399,167 @@ func handleLocalIP(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+type DnsUploadRequest struct {
+	Provider   string   `json:"provider"`
+	Token      string   `json:"token"`
+	Zone       string   `json:"zone"`
+	Subdomain  string   `json:"subdomain"`
+	Count      int      `json:"count"`
+	Ips        []string `json:"ips"`
+	RecordType string   `json:"recordType"`
+}
+
+func handleDnsUpload(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Write([]byte(`{"ok":false,"msg":"Method not allowed"}`))
+		return
+	}
+
+	var req DnsUploadRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"ok":false,"msg":"Invalid request body"}`))
+		return
+	}
+
+	if req.Token == "" || req.Zone == "" || req.Subdomain == "" || len(req.Ips) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"ok":false,"msg":"Missing required fields"}`))
+		return
+	}
+
+	recordName := req.Subdomain
+	recordType := strings.ToUpper(req.RecordType)
+	if recordType != "A" && recordType != "TXT" {
+		recordType = "A"
+	}
+
+	count := req.Count
+	if count <= 0 || count > len(req.Ips) {
+		count = len(req.Ips)
+	}
+
+	ips := req.Ips[:count]
+
+	addLog(fmt.Sprintf("DNS 上传: %d 个记录到 %s (类型 %s)", len(ips), recordName, recordType))
+
+	err := cloudflare.BatchUpdateDNS(
+		req.Token, req.Zone, recordName,
+		60, false, recordType,
+		ips, ips,
+		3, 3, 3, 3,
+	)
+	if err != nil {
+		addLog("DNS 上传失败: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "msg": err.Error()})
+		return
+	}
+
+	addLog(fmt.Sprintf("DNS 上传完成: %d 条", len(ips)))
+	json.NewEncoder(w).Encode(map[string]interface{}{"ok": true, "count": len(ips)})
+}
+
+type GithubUploadRequest struct {
+	Token  string   `json:"token"`
+	Repo   string   `json:"repo"`
+	Path   string   `json:"path"`
+	Branch string   `json:"branch"`
+	Ips    []string `json:"ips"`
+	Format string   `json:"format"`
+}
+
+func handleGithubUpload(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Write([]byte(`{"ok":false,"msg":"Method not allowed"}`))
+		return
+	}
+
+	var req GithubUploadRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"ok":false,"msg":"Invalid request body"}`))
+		return
+	}
+
+	if req.Token == "" || req.Repo == "" || len(req.Ips) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"ok":false,"msg":"Missing required fields"}`))
+		return
+	}
+
+	if req.Path == "" {
+		req.Path = "ips.txt"
+	}
+	if req.Branch == "" {
+		req.Branch = "main"
+	}
+
+	addLog(fmt.Sprintf("GIT 上传: %d 条记录到 %s/%s (分支 %s)", len(req.Ips), req.Repo, req.Path, req.Branch))
+
+	content := strings.Join(req.Ips, "\n") + "\n"
+
+	client := &http.Client{Timeout: 30 * time.Second}
+
+	getURL := fmt.Sprintf("https://api.github.com/repos/%s/contents/%s?ref=%s", req.Repo, req.Path, req.Branch)
+	getReq, _ := http.NewRequest("GET", getURL, nil)
+	getReq.Header.Set("Authorization", "Bearer "+req.Token)
+	getReq.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	getResp, err := client.Do(getReq)
+	var sha string
+	if err == nil && getResp.StatusCode == http.StatusOK {
+		var existing struct {
+			SHA string `json:"sha"`
+		}
+		json.NewDecoder(getResp.Body).Decode(&existing)
+		sha = existing.SHA
+	}
+	if getResp != nil && getResp.Body != nil {
+		getResp.Body.Close()
+	}
+
+	payload := map[string]interface{}{
+		"message":  "Update IP list via CFNB",
+		"content":  base64.StdEncoding.EncodeToString([]byte(content)),
+		"branch":   req.Branch,
+	}
+	if sha != "" {
+		payload["sha"] = sha
+	}
+
+	body, _ := json.Marshal(payload)
+	putURL := fmt.Sprintf("https://api.github.com/repos/%s/contents/%s", req.Repo, req.Path)
+	putReq, _ := http.NewRequest("PUT", putURL, bytes.NewReader(body))
+	putReq.Header.Set("Authorization", "Bearer "+req.Token)
+	putReq.Header.Set("Content-Type", "application/json")
+	putReq.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	putResp, err := client.Do(putReq)
+	if err != nil {
+		addLog("GIT 上传失败: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "msg": err.Error()})
+		return
+	}
+	defer putResp.Body.Close()
+
+	if putResp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(putResp.Body)
+		addLog(fmt.Sprintf("GIT 上传失败: HTTP %d - %s", putResp.StatusCode, string(respBody)))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "msg": fmt.Sprintf("GitHub API error: HTTP %d", putResp.StatusCode)})
+		return
+	}
+
+	addLog(fmt.Sprintf("GIT 上传完成: %d 条", len(req.Ips)))
+	json.NewEncoder(w).Encode(map[string]interface{}{"ok": true, "count": len(req.Ips)})
+}
+
 func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 	var logWriter *LogWriter
 	defer func() {
@@ -513,6 +679,9 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 		} else {
 			cfg.DNSIPRiskMaxLevel = rc.DNSRiskMaxLevel
 		}
+	}
+	if rc.IPv6FilterEnabled != nil {
+		cfg.FilterIPv6Availability = *rc.IPv6FilterEnabled
 	}
 
 	outBuf := &bytes.Buffer{}
