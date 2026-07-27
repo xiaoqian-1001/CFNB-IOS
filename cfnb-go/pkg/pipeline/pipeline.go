@@ -40,6 +40,30 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 		fmt.Fprintln(output, fmt.Sprintf(format, args...))
 	}
 
+	oldStdout := os.Stdout
+	pr, pw, _ := os.Pipe()
+	os.Stdout = pw
+	done := make(chan struct{})
+	go func() {
+		defer pr.Close()
+		buf := make([]byte, 4096)
+		for {
+			n, err := pr.Read(buf)
+			if n > 0 {
+				output.Write(buf[:n])
+			}
+			if err != nil {
+				close(done)
+				return
+			}
+		}
+	}()
+	defer func() {
+		pw.Close()
+		os.Stdout = oldStdout
+		<-done
+	}()
+
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
