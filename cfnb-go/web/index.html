@@ -509,18 +509,6 @@ textarea:disabled{opacity:0.4;cursor:not-allowed}
 </div>
 </div>
 <div class="settings-row">
-<div class="sl-label">DNS上传</div>
-<div class="sl-right">
-<div class="toggle-wrap"><div class="toggle-track" id="dnsTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="cfgCFEnabled"></div></div>
-</div>
-</div>
-<div class="settings-row">
-<div class="sl-label">GIT上传</div>
-<div class="sl-right">
-<div class="toggle-wrap"><div class="toggle-track" id="gitTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="cfgGitSync"></div></div>
-</div>
-</div>
-<div class="settings-row">
 <div class="sl-label">DNS 黑名单</div>
 <div class="sl-right">
 <div class="toggle-wrap"><div class="toggle-track" id="dnsBlacklistTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="cfgDNSBlacklist" onchange="toggleDNSBlacklist()"></div></div>
@@ -654,8 +642,6 @@ function saveConfig() {
     useDirectIP: S('cfgUseDirectIP').checked,
     sourceURLs: S('cfgSources').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
     directIPs: S('cfgDirectIPs').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
-    cfEnabled: S('cfgCFEnabled').checked,
-    gitSyncEnabled: S('cfgGitSync').checked,
     dnsBlacklist: S('cfgDNSBlacklist').checked,
     riskLevel: S('cfgRiskLevel').value,
     ipv6FilterEnabled: S('cfgIPv6Filter').checked
@@ -696,8 +682,6 @@ function loadConfig() {
     if (saved.sourceURLs && saved.sourceURLs.length > 0) S('cfgSources').value = saved.sourceURLs.join('\n');
     if (saved.directIPs && saved.directIPs.length > 0) S('cfgDirectIPs').value = saved.directIPs.join('\n');
     updateDirectIPCount();
-    if (saved.cfEnabled !== undefined) S('cfgCFEnabled').checked = saved.cfEnabled;
-    if (saved.gitSyncEnabled !== undefined) S('cfgGitSync').checked = saved.gitSyncEnabled;
     if (saved.dnsBlacklist !== undefined) {
       S('cfgDNSBlacklist').checked = saved.dnsBlacklist;
       toggleDNSBlacklist();
@@ -717,7 +701,7 @@ function loadConfig() {
 loadConfig();
 
 function updateToggleUI() {
-  ['cfgAvailability','cfgHTTPTest','cfgPortFilter','cfgBlockCountry','cfgUseDirectIP','cfgCFEnabled','cfgGitSync','cfgIPv6Filter'].forEach(function(id) {
+  ['cfgAvailability','cfgHTTPTest','cfgPortFilter','cfgBlockCountry','cfgUseDirectIP','cfgIPv6Filter'].forEach(function(id) {
     var t = S(id);
     if (t) t.closest('.toggle-track').classList.toggle('on', t.checked);
   });
@@ -892,8 +876,6 @@ function resetConfig() {
   S('cfgHTTPTest').checked = true;
   S('cfgPortFilter').checked = true;
   S('cfgBlockCountry').checked = true;
-  S('cfgCFEnabled').checked = false;
-  S('cfgGitSync').checked = false;
   S('cfgDNSBlacklist').checked = false;
   S('cfgIPv6Filter').checked = false;
   S('cfgRiskLevel').value = '关闭';
@@ -907,7 +889,7 @@ function resetConfig() {
 }
 
 function setControlsDisabled(disabled) {
-  var ids = ['cfgBandwidthSize','cfgCandidates','cfgGlobalTopN','cfgPerCountryTopN','cfgTCPProbes','cfgTCPWorkers','cfgTCPTimeout','cfgBWWorkers','cfgBWTimeout','cfgMinSuccessRate','cfgPorts','cfgBlockedCountries','cfgSources','cfgDirectIPs','cfgUseDirectIP','cfgAvailability','cfgHTTPTest','cfgPortFilter','cfgBlockCountry','cfgCFEnabled','cfgGitSync','cfgDNSBlacklist','cfgRiskLevel','cfgIPv6Filter'];
+  var ids = ['cfgBandwidthSize','cfgCandidates','cfgGlobalTopN','cfgPerCountryTopN','cfgTCPProbes','cfgTCPWorkers','cfgTCPTimeout','cfgBWWorkers','cfgBWTimeout','cfgMinSuccessRate','cfgPorts','cfgBlockedCountries','cfgSources','cfgDirectIPs','cfgUseDirectIP','cfgAvailability','cfgHTTPTest','cfgPortFilter','cfgBlockCountry','cfgDNSBlacklist','cfgRiskLevel','cfgIPv6Filter'];
   ids.forEach(function(id) {
     var el = S(id);
     if (el) el.disabled = disabled;
@@ -947,8 +929,6 @@ function startPipeline() {
     useURLSource: !S('cfgUseDirectIP').checked,
     sourceURLs: S('cfgSources').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
     directIPs: S('cfgDirectIPs').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
-    cfEnabled: S('cfgCFEnabled').checked,
-    gitSyncEnabled: S('cfgGitSync').checked,
     dnsBlacklistFilter: S('cfgDNSBlacklist').checked,
     dnsRiskMaxLevel: S('cfgRiskLevel').value,
     ipv6FilterEnabled: S('cfgIPv6Filter').checked
