@@ -1,0 +1,209 @@
+package pipeline
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"os"
+	"sort"
+	"strings"
+	"time"
+
+	"cfnb/pkg/bandwidth"
+	"cfnb/pkg/config"
+	"cfnb/pkg/tcp"
+)
+
+type QuickNodeInfo struct {
+	Node      string  `json:"node"`
+	Speed     float64 `json:"speed"`
+	PeakSpeed float64 `json:"peakSpeed"`
+	Latency   float64 `json:"latency"`
+	CCTag     string  `json:"ccTag"`
+	Country   string  `json:"country"`
+	Provider  string  `json:"provider"`
+	CountryCode string `json:"countryCode"`
+}
+
+type QuickResult struct {
+	Nodes     []QuickNodeInfo `json:"nodes"`
+	TotalTime float64         `json:"totalTime"`
+}
+
+func QuickScan(ctx context.Context, cfg *config.Config, minBandwidth float64, desiredCount int, output io.Writer) (*QuickResult, error) {
+	startTime := time.Now()
+	log := func(format string, args ...interface{}) {
+		fmt.Fprintln(output, fmt.Sprintf(format, args...))
+	}
+
+	oldStdout := os.Stdout
+	pr, pw, _ := os.Pipe()
+	os.Stdout = pw
+	done := make(chan struct{})
+	go func() {
+		defer pr.Close()
+		buf := make([]byte, 4096)
+		for {
+			n, err := pr.Read(buf)
+			if n > 0 {
+				output.Write(buf[:n])
+			}
+			if err != nil {
+				close(done)
+				return
+			}
+		}
+	}()
+	defer func() {
+		pw.Close()
+		os.Stdout = oldStdout
+		<-done
+	}()
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	if cfg.ForceDirect {
+		for _, key := range []string{"HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy"} {
+			os.Unsetenv(key)
+		}
+		os.Setenv("NO_PROXY", "*")
+	}
+
+	log("开始快筛...")
+	log("目标带宽: %.0f Mbps | 期望数量: %d 个", minBandwidth, desiredCount)
+
+	nodes := fetchAllSources(ctx, cfg, log)
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("没有获取到任何有效节点")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	nodes = prepFilter(nodes, cfg, log)
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("过滤后无任何节点")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	tcpResults := tcp.TestAll(ctx, nodes, cfg.Timeout, cfg.TCPProbes, cfg.MinSuccessRate, cfg.MaxWorkers)
+	if len(tcpResults) == 0 {
+		return nil, fmt.Errorf("没有通过 TCP 测试的节点")
+	}
+	sortTCPResults(tcpResults)
+
+	latencyMap := make(map[string]float64)
+	for _, r := range tcpResults {
+		latencyMap[r.Node] = r.Latency
+	}
+
+	candidates, _ := selectCandidates(tcpResults, cfg, log)
+	if len(candidates) == 0 {
+		return nil, fmt.Errorf("候选池为空")
+	}
+
+	quickSizeMB := 1.0
+	bwURL := strings.Replace(cfg.BandwidthURLTemplate, "{bytes}", fmt.Sprintf("%d", int(quickSizeMB*1024*1024)), 1)
+	log("\n第一轮快速测速（文件大小 %.1fMB，并发 %d，超时 %.0fs）...", quickSizeMB, cfg.BandwidthWorkers, cfg.BandwidthTimeout)
+
+	firstRound := bandwidth.Filter(ctx, candidates, bwURL, cfg.BandwidthConnectTimeout, cfg.BandwidthTimeout, cfg.BandwidthProcessBuffer, quickSizeMB, cfg.BandwidthWorkers, cfg.ProgressPrintInterval)
+	if len(firstRound) == 0 {
+		return nil, fmt.Errorf("第一轮测速无有效结果")
+	}
+
+	sort.Slice(firstRound, func(i, j int) bool {
+		return firstRound[i].Speed > firstRound[j].Speed
+	})
+
+	var aboveThreshold []bandwidth.Result
+	for _, r := range firstRound {
+		if r.Speed >= minBandwidth {
+			aboveThreshold = append(aboveThreshold, r)
+		}
+	}
+
+	log("第一轮测速完成: %d 个节点高于 %.0f Mbps", len(aboveThreshold), minBandwidth)
+
+	if len(aboveThreshold) == 0 {
+		aboveThreshold = firstRound
+		keep := desiredCount * 2
+		if keep > len(aboveThreshold) {
+			keep = len(aboveThreshold)
+		}
+		aboveThreshold = aboveThreshold[:keep]
+	} else {
+		keep := desiredCount * 2
+		if keep > len(aboveThreshold) {
+			keep = len(aboveThreshold)
+		}
+		aboveThreshold = aboveThreshold[:keep]
+	}
+
+	finalCandidates := make([]string, len(aboveThreshold))
+	for i, r := range aboveThreshold {
+		finalCandidates[i] = r.Node
+	}
+
+	finalSizeMB := 25.0
+	finalURL := strings.Replace(cfg.BandwidthURLTemplate, "{bytes}", fmt.Sprintf("%d", int(finalSizeMB*1024*1024)), 1)
+	log("\n第二轮精准测速（文件大小 %.1fMB，共 %d 个节点）...", finalSizeMB, len(finalCandidates))
+
+	finalResults := bandwidth.Filter(ctx, finalCandidates, finalURL, cfg.BandwidthConnectTimeout, cfg.BandwidthTimeout, cfg.BandwidthProcessBuffer, finalSizeMB, cfg.BandwidthWorkers, cfg.ProgressPrintInterval)
+	if len(finalResults) == 0 {
+		log("第二轮测速无有效结果，使用第一轮结果")
+		finalResults = aboveThreshold
+	}
+
+	sort.Slice(finalResults, func(i, j int) bool {
+		return finalResults[i].Speed > finalResults[j].Speed
+	})
+
+	keep := desiredCount
+	if keep > len(finalResults) {
+		keep = len(finalResults)
+	}
+	finalResults = finalResults[:keep]
+
+	log("\n================ 快筛结果 ================")
+	speedMap := make(map[string]float64)
+	peakMap := make(map[string]float64)
+	for _, r := range finalResults {
+		speedMap[r.Node] = r.Speed
+		peakMap[r.Node] = r.PeakMbps
+	}
+
+	var quickNodes []QuickNodeInfo
+	for i, r := range finalResults {
+		lat := latencyMap[r.Node] * 1000
+		ccTag := ""
+		country := ""
+		countryCode := ""
+		if idx := strings.IndexByte(r.Node, '#'); idx >= 0 {
+			ccTag = r.Node[idx+1:]
+			country = ccTag
+		}
+		parts := strings.SplitN(r.Node, "#", 2)
+		nodeStr := parts[0]
+		_ = nodeStr
+
+		log("%d. %s 速度 %.2f Mbps 延迟 %.2f ms", i+1, r.Node, r.Speed, lat)
+		quickNodes = append(quickNodes, QuickNodeInfo{
+			Node:        r.Node,
+			Speed:       r.Speed,
+			PeakSpeed:   r.PeakMbps,
+			Latency:     lat,
+			CCTag:       ccTag,
+			Country:     country,
+			CountryCode: countryCode,
+		})
+	}
+
+	return &QuickResult{
+		Nodes:     quickNodes,
+		TotalTime: time.Since(startTime).Seconds(),
+	}, nil
+}

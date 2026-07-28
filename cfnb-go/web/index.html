@@ -180,7 +180,8 @@ textarea:disabled{opacity:0.4;cursor:not-allowed}
 .history-list{display:flex;flex-direction:column;gap:12pt}
 .history-item{border-radius:14pt!important;padding:16pt}
 .history-item-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4pt}
-.history-item .h-time{font-size:11px;color:var(--muted2)}
+.history-item .h-time{font-size:11px;color:var(--muted2);display:flex;align-items:center;gap:6pt}
+.badge-quick{display:inline-block;background:#2563eb;color:#fff;font-size:10px;font-weight:600;padding:1pt 6pt;border-radius:4pt;line-height:1.4}
 .history-item .h-duration{font-size:11px;color:var(--label);margin-left:auto;margin-right:8pt;flex-shrink:0}
 .history-item .ip{font-size:19px;font-weight:650;color:var(--primary);cursor:pointer;font-family:'SF Mono',ui-monospace,monospace;letter-spacing:-0.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;margin-bottom:6pt;user-select:none}
 .history-metrics{display:flex;flex-direction:column;gap:3pt;margin-bottom:3pt}
@@ -362,6 +363,58 @@ textarea:disabled{opacity:0.4;cursor:not-allowed}
 <div id="resultList" class="result-list"></div>
 </div>
 
+</div>
+
+<div class="tab-content" id="tab-quickscan" style="display:none">
+<div class="glass-card material-regular">
+<div class="card-title">快筛配置</div>
+<div class="section">
+<div class="settings-row" style="padding-top:0">
+<div class="sl-label">数据源模式</div>
+<div class="sl-right">
+<div class="toggle-wrap">
+<div class="toggle-track" id="qsDSTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="qsUseDirectIP"></div>
+</div>
+</div>
+</div>
+<div id="qsURLSourceSection" class="field" style="margin-top:6px">
+<label>数据源URL | 单行单链接</label>
+<textarea id="qsSources" rows="2" style="min-height:50pt"></textarea>
+</div>
+<div id="qsDirectIPSection" style="display:none;margin-top:6px">
+<div class="field">
+<label style="display:flex;justify-content:space-between;align-items:center">
+<span>IP地址及端口 | 单行单条</span>
+<span style="font-size:11px;color:var(--muted2)" id="qsDirectIPCount">0 条</span>
+</label>
+<div style="display:flex;gap:4pt;margin-bottom:4px">
+<button class="btn-text" onclick="qsImportIPFile()">导入文件</button>
+<button class="btn-text" onclick="qsPasteDirectIPs()">粘贴信息</button>
+<button class="btn-text" onclick="document.getElementById('qsDirectIPs').value='';qsSaveConfig();qsUpdateDirectIPCount()">清空列表</button>
+</div>
+</div>
+<textarea id="qsDirectIPs" rows="4" style="min-height:80pt" placeholder="1.1.1.1:443&#10;1.0.0.1:443" oninput="qsUpdateDirectIPCount()"></textarea>
+</div>
+</div>
+<div class="section">
+<div class="row">
+<div class="field"><label>目标带宽</label>
+<select id="qsMinBandwidth"><option value="50">50 Mbps</option><option value="100">100 Mbps</option></select>
+</div>
+<div class="field"><label>期望数量</label><input type="number" id="qsDesiredCount" value="10" min="1" max="50"></div>
+</div>
+</div>
+<div class="btn-spacer">
+<button class="btn btn-primary" id="qsActionBtn" onclick="qsToggleScan()">开始快筛</button>
+</div>
+</div>
+<div class="glass-card material-thin" id="qsLogPanelWrap" style="display:none">
+<div class="card-title" style="justify-content:space-between;margin-bottom:6pt">
+<span>快筛日志</span>
+<span style="font-size:11px;color:var(--muted2);font-family:'SF Mono',ui-monospace,monospace" id="qsScanTimer">--</span>
+</div>
+<div class="log-panel" id="qsLogPanel"></div>
+</div>
 </div>
 
 <div class="tab-content" id="tab-history" style="display:none">
@@ -560,6 +613,10 @@ textarea:disabled{opacity:0.4;cursor:not-allowed}
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
 <span class="tab-label">历史</span>
 </button>
+<button class="tab-item" data-tab="quickscan" onclick="switchTab('quickscan')">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+<span class="tab-label">快筛</span>
+</button>
 <button class="tab-item" data-tab="settings" onclick="switchTab('settings')">
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
 <span class="tab-label">设置</span>
@@ -574,6 +631,12 @@ var scanTimer = null;
 var scanStart = 0;
 var logCache = [];
 var initialLoad = true;
+
+var qsResults = null;
+var qsRunning = false;
+var qsLogCache = [];
+var qsScanTimer = null;
+var qsScanStart = 0;
 
 function S(id) { return document.getElementById(id); }
 
@@ -605,6 +668,7 @@ function switchTab(name) {
   items.forEach(function(t) { t.classList.toggle('active', t.dataset.tab === name); });
   S('actionBtnWrapper') && (S('actionBtnWrapper').style.display = name === 'scan' ? '' : 'none');
   if (name === 'history') renderHistory();
+  if (name === 'quickscan') { qsLoadConfig(); }
 }
 
 var navTicking = false;
@@ -1000,7 +1064,7 @@ function updateUI(s) {
     setControlsDisabled(false);
     s.progress = '完成';
     showToast('扫描完成');
-    saveHistory(s.results);
+    saveHistory(s.results, 'full');
   } else {
     if (initialLoad) { initialLoad = false; return; }
     resetToIdle();
@@ -1148,12 +1212,13 @@ function coloFlag(c) { return c && coloCountry[c] ? ' - ' + coloCountry[c] : '';
 
 function fmtDur(s) { if (s <= 0) return '-'; if (s < 60) return Math.round(s) + 's'; var m = Math.floor(s / 60); var sec = Math.round(s % 60); return m + ':' + (sec < 10 ? '0' : '') + sec; }
 
-function saveHistory(r) {
+function saveHistory(r, type) {
   var history = [];
   try { history = JSON.parse(localStorage.getItem('cfnbHistory') || '[]'); } catch(e) {}
   if (history.length > 0 && history[0].nodes === r.nodes.length && history[0].totalBandwidth === r.totalBandwidth) return;
   history.unshift({
     time: new Date().toLocaleString(),
+    type: type || 'full',
     nodes: r.nodes.length,
     totalBandwidth: r.totalBandwidth,
     avgLatency: r.avgLatency,
@@ -1201,7 +1266,7 @@ function renderHistory(skipAnimation) {
     var r0 = nodes[0];
     var total = nodes.length;
     html += '<div class="glass-card history-item stagger-enter">';
-    html += '<div class="history-item-top"><span class="h-time">' + escapeHtml(h.time) + '</span>' +
+    html += '<div class="history-item-top"><span class="h-time">' + escapeHtml(h.time) + (h.type === 'quick' ? ' <span class="badge-quick">快筛</span>' : '') + '</span>' +
       '<div style="display:flex;gap:6pt">' +
       '<button class="btn-text" onclick="copyAllFromHistory(' + hi + ')" style="font-size:11px;height:26pt;padding:0 8pt">复制</button>' +
       '<button class="btn-text" onclick="deleteHistory(' + hi + ')" style="font-size:11px;height:26pt;padding:0 8pt">删除</button>' +
@@ -1544,6 +1609,189 @@ async function fetchLocalIP() {
   } catch(e) {
     S('liPublic').textContent = '获取失败';
   }
+}
+
+function qsToggleScan() {
+  if (qsRunning) {
+    fetch('/api/quick-scan', {method:'POST',body:'{}'}).then(function(r){return r.json()}).then(function(d){
+      if (!d.ok) showToast(d.msg || '停止失败');
+    });
+    return;
+  }
+  qsSaveConfig();
+  var cfg = {
+    minBandwidth: parseFloat(S('qsMinBandwidth').value) || 50,
+    desiredCount: parseInt(S('qsDesiredCount').value) || 10,
+    sourceURLs: S('qsSources').value.split('\n').map(function(s){return s.trim()}).filter(function(s){return s}),
+    useURLSource: !S('qsUseDirectIP').checked,
+    directIPs: S('qsDirectIPs').value.split('\n').map(function(s){return s.trim()}).filter(function(s){return s})
+  };
+  S('qsLogPanelWrap').style.display = 'block';
+  S('qsLogPanel').innerHTML = '';
+  qsLogCache = [];
+  fetch('/api/quick-scan', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(cfg)
+  }).then(function(r){return r.json()}).then(function(d){
+    if (!d.ok) showToast(d.msg || '启动失败');
+  });
+}
+
+function qsSaveConfig() {
+  var cfg = {
+    minBandwidth: parseFloat(S('qsMinBandwidth').value) || 50,
+    desiredCount: parseInt(S('qsDesiredCount').value) || 10,
+    useDirectIP: S('qsUseDirectIP').checked,
+    sourceURLs: S('qsSources').value.split('\n').map(function(s){return s.trim()}).filter(function(s){return s}),
+    directIPs: S('qsDirectIPs').value.split('\n').map(function(s){return s.trim()}).filter(function(s){return s})
+  };
+  localStorage.setItem('cfnbQSConfig', JSON.stringify(cfg));
+}
+
+function qsLoadConfig() {
+  try {
+    var saved = JSON.parse(localStorage.getItem('cfnbQSConfig'));
+    if (!saved) return;
+    S('qsMinBandwidth').value = saved.minBandwidth || 50;
+    S('qsDesiredCount').value = saved.desiredCount || 10;
+    S('qsSources').value = (saved.sourceURLs || []).join('\n');
+    S('qsDirectIPs').value = (saved.directIPs || []).join('\n');
+    if (saved.useDirectIP) {
+      S('qsUseDirectIP').checked = true;
+      S('qsDSTrack').classList.add('on');
+      S('qsURLSourceSection').style.display = 'none';
+      S('qsDirectIPSection').style.display = '';
+    }
+    qsUpdateDirectIPCount();
+  } catch(e) {}
+}
+
+function qsUpdateDirectIPCount() {
+  var count = S('qsDirectIPs').value.split('\n').filter(function(s){return s.trim()}).length;
+  S('qsDirectIPCount').textContent = count + ' 条';
+}
+
+function qsImportIPFile() {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.txt,.csv';
+  input.onchange = function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var text = ev.target.result;
+      if (S('qsDirectIPs').value) {
+        S('qsDirectIPs').value += '\n' + text;
+      } else {
+        S('qsDirectIPs').value = text;
+      }
+      qsUpdateDirectIPCount();
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function qsPasteDirectIPs() {
+  var ta = S('qsDirectIPs');
+  ta.focus();
+  ta.select();
+  document.execCommand('paste');
+  setTimeout(qsUpdateDirectIPCount, 100);
+}
+
+function connectQSSE() {
+  var evtSource = new EventSource('/api/quick-events');
+  evtSource.onmessage = function(e) {
+    try { qsUpdateUI(JSON.parse(e.data)); } catch(ex) {}
+  };
+  evtSource.onerror = function() { setTimeout(connectQSSE, 3000); };
+}
+
+function qsUpdateUI(s) {
+  var btn = S('qsActionBtn');
+  qsRunning = s.running;
+  if (s.running) {
+    btn.innerHTML = '<span class="btn-spinner"></span> 停止快筛';
+    btn.className = 'btn btn-running';
+    btn.disabled = false;
+    if (!qsScanStart) { qsScanStart = Date.now(); qsStartTimer(); }
+  } else if (s.results) {
+    btn.innerHTML = '开始快筛';
+    btn.className = 'btn btn-primary';
+    btn.disabled = false;
+    qsStopTimer();
+    qsScanStart = 0;
+    showToast('快筛完成');
+    var r = s.results;
+    var histData = {
+      nodes: r.nodes,
+      totalBandwidth: 0,
+      avgLatency: 0,
+      totalTime: r.totalTime
+    };
+    var totalSpeed = 0, speedCount = 0, totalLat = 0, latCount = 0;
+    r.nodes.forEach(function(n) {
+      if (n.speed > 0) { totalSpeed += n.speed; speedCount++; }
+      if (n.latency > 0) { totalLat += n.latency; latCount++; }
+    });
+    if (speedCount > 0) histData.totalBandwidth = totalSpeed;
+    if (latCount > 0) histData.avgLatency = totalLat / latCount;
+    saveHistory(histData, 'quick');
+  } else {
+    btn.innerHTML = '开始快筛';
+    btn.className = 'btn btn-primary';
+    btn.disabled = false;
+    qsStopTimer();
+    qsScanStart = 0;
+    qsRunning = false;
+    S('qsScanTimer').textContent = '--';
+  }
+  qsUpdateLogs(s.logs || []);
+}
+
+function qsUpdateLogs(logs) {
+  if (!logs || logs.length <= qsLogCache.length) return;
+  var panel = S('qsLogPanel');
+  for (var i = qsLogCache.length; i < logs.length; i++) {
+    var l = logs[i];
+    var div = document.createElement('div');
+    div.className = 'log-line';
+    if (l.includes('ERROR') || l.includes('错误')) div.className += ' error';
+    else if (l.includes('带宽测速') || (l.includes('带宽') && l.includes('进度'))) div.className += ' success';
+    else if (l.includes('进度') || l.includes('开始')) div.className += ' info';
+    else if (l.includes('完成') || l.includes('通过')) div.className += ' success';
+    else if (l.includes('失败') || l.includes('跳过')) div.className += ' warn';
+    div.textContent = l;
+    panel.appendChild(div);
+  }
+  qsLogCache = logs.slice();
+  panel.scrollTop = panel.scrollHeight;
+}
+
+function qsStartTimer() {
+  qsStopTimer();
+  qsScanTimer = setInterval(function() {
+    var elapsed = ((Date.now() - qsScanStart) / 1000).toFixed(0);
+    S('qsScanTimer').textContent = elapsed + 's';
+  }, 1000);
+}
+
+function qsStopTimer() {
+  if (qsScanTimer) { clearInterval(qsScanTimer); qsScanTimer = null; }
+}
+
+var qsDSTrack = document.getElementById('qsDSTrack');
+if (qsDSTrack) {
+  qsDSTrack.addEventListener('click', function() {
+    var cb = S('qsUseDirectIP');
+    cb.checked = !cb.checked;
+    this.classList.toggle('on', cb.checked);
+    S('qsURLSourceSection').style.display = cb.checked ? 'none' : '';
+    S('qsDirectIPSection').style.display = cb.checked ? '' : 'none';
+  });
 }
 </script>
 </body>
