@@ -152,7 +152,8 @@ func QuickScan(ctx context.Context, cfg *config.Config, minBandwidth float64, de
 	finalURL := strings.Replace(cfg.BandwidthURLTemplate, "{bytes}", fmt.Sprintf("%d", int(finalSizeMB*1024*1024)), 1)
 	log("\n第二轮精准测速（文件大小 %.1fMB，共 %d 个节点）...", finalSizeMB, len(finalCandidates))
 
-	finalResults := bandwidth.Filter(ctx, finalCandidates, finalURL, cfg.BandwidthConnectTimeout, cfg.BandwidthTimeout, cfg.BandwidthProcessBuffer, finalSizeMB, cfg.BandwidthWorkers, cfg.ProgressPrintInterval)
+	finalTimeout := 15.0
+	finalResults := bandwidth.Filter(ctx, finalCandidates, finalURL, cfg.BandwidthConnectTimeout, finalTimeout, cfg.BandwidthProcessBuffer, finalSizeMB, cfg.BandwidthWorkers, cfg.ProgressPrintInterval)
 	if len(finalResults) == 0 {
 		log("第二轮测速无有效结果，使用第一轮结果")
 		finalResults = aboveThreshold
