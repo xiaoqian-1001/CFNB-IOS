@@ -1641,29 +1641,23 @@ function qsToggleScan() {
 function qsSaveConfig() {
   var cfg = {
     minBandwidth: parseFloat(S('qsMinBandwidth').value) || 50,
-    desiredCount: parseInt(S('qsDesiredCount').value) || 10
+    desiredCount: parseInt(S('qsDesiredCount').value) || 10,
+    useDirectIP: S('qsUseDirectIP').checked,
+    sourceURLs: S('qsSources').value.split('\n').map(function(s){return s.trim()}).filter(function(s){return s}),
+    directIPs: S('qsDirectIPs').value.split('\n').map(function(s){return s.trim()}).filter(function(s){return s})
   };
   localStorage.setItem('cfnbQSConfig', JSON.stringify(cfg));
-
-  var mainCfg = {};
-  try { mainCfg = JSON.parse(localStorage.getItem('cfnbConfig') || '{}'); } catch(e) {}
-  mainCfg.useDirectIP = S('qsUseDirectIP').checked;
-  mainCfg.sourceURLs = S('qsSources').value.split('\n').map(function(s){return s.trim()}).filter(function(s){return s});
-  mainCfg.directIPs = S('qsDirectIPs').value.split('\n').map(function(s){return s.trim()}).filter(function(s){return s});
-  localStorage.setItem('cfnbConfig', JSON.stringify(mainCfg));
 }
 
 function qsLoadConfig() {
   try {
     var saved = JSON.parse(localStorage.getItem('cfnbQSConfig'));
-    if (saved) {
-      S('qsMinBandwidth').value = saved.minBandwidth || 50;
-      S('qsDesiredCount').value = saved.desiredCount || 10;
-    }
-    var mainCfg = JSON.parse(localStorage.getItem('cfnbConfig') || '{}');
-    S('qsSources').value = (mainCfg.sourceURLs || ['https://zip.cm.edu.kg/all.txt']).join('\n');
-    S('qsDirectIPs').value = (mainCfg.directIPs || []).join('\n');
-    if (mainCfg.useDirectIP) {
+    if (!saved) return;
+    S('qsMinBandwidth').value = saved.minBandwidth || 50;
+    S('qsDesiredCount').value = saved.desiredCount || 10;
+    S('qsSources').value = (saved.sourceURLs || []).join('\n');
+    S('qsDirectIPs').value = (saved.directIPs || []).join('\n');
+    if (saved.useDirectIP) {
       S('qsUseDirectIP').checked = true;
       S('qsDSTrack').classList.add('on');
       S('qsURLSourceSection').style.display = 'none';
@@ -1723,7 +1717,6 @@ function qsUpdateUI(s) {
     btn.innerHTML = '<span class="btn-spinner"></span> 停止快筛';
     btn.className = 'btn btn-running';
     btn.disabled = false;
-    S('qsLogPanelWrap').style.display = 'block';
     if (!qsScanStart) { qsScanStart = Date.now(); qsStartTimer(); }
   } else if (s.results) {
     btn.innerHTML = '开始快筛';
@@ -1791,12 +1784,13 @@ function qsStopTimer() {
 }
 
 var qsDSTrack = document.getElementById('qsDSTrack');
-var qsUseDirectIP = document.getElementById('qsUseDirectIP');
-if (qsUseDirectIP) {
-  qsUseDirectIP.addEventListener('change', function() {
-    qsDSTrack.classList.toggle('on', this.checked);
-    S('qsURLSourceSection').style.display = this.checked ? 'none' : '';
-    S('qsDirectIPSection').style.display = this.checked ? '' : 'none';
+if (qsDSTrack) {
+  qsDSTrack.addEventListener('click', function() {
+    var cb = S('qsUseDirectIP');
+    cb.checked = !cb.checked;
+    this.classList.toggle('on', cb.checked);
+    S('qsURLSourceSection').style.display = cb.checked ? 'none' : '';
+    S('qsDirectIPSection').style.display = cb.checked ? '' : 'none';
   });
 }
 </script>
