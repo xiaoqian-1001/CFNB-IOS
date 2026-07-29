@@ -315,7 +315,8 @@ textarea:disabled{opacity:0.4;cursor:not-allowed}
 </div>
 <div id="urlSourceSection" class="field" style="margin-top:6px">
 <label>数据源URL | 单行单链接</label>
-<textarea id="cfgSources" rows="2" style="min-height:50pt">https://zip.cm.edu.kg/all.txt</textarea>
+<textarea id="cfgSources" rows="2" style="min-height:50pt">https://zip.cm.edu.kg/all.txt
+https://countrymerge.pages.dev/all.txt</textarea>
 </div>
 <div id="directIPSection" style="display:none;margin-top:6px">
 <div class="field">
@@ -870,7 +871,7 @@ function resetConfig() {
   S('cfgMinSuccessRate').value = '100';
   S('cfgPorts').value = '443';
   S('cfgBlockedCountries').value = 'CN';
-  S('cfgSources').value = 'https://zip.cm.edu.kg/all.txt';
+  S('cfgSources').value = 'https://zip.cm.edu.kg/all.txt\nhttps://countrymerge.pages.dev/all.txt';
   S('cfgDirectIPs').value = '';
   S('cfgAvailability').checked = true;
   S('cfgHTTPTest').checked = true;
