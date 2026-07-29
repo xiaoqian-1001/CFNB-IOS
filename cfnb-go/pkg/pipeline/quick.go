@@ -109,7 +109,7 @@ func QuickScan(ctx context.Context, cfg *config.Config, minBandwidth float64, de
 quickSizeMB := 10.0
 	quickTimeout := 15.0
 	bwURL := strings.Replace(cfg.BandwidthURLTemplate, "{bytes}", fmt.Sprintf("%d", int(quickSizeMB*1024*1024)), 1)
-	quickWorkers := 5
+	quickWorkers := 3
 	log("\n快速测速（文件大小 %.1fMB，并发 %d，超时 %.0fs）...", quickSizeMB, quickWorkers, quickTimeout)
 
 	allResults := bandwidth.Filter(ctx, candidates, bwURL, cfg.BandwidthConnectTimeout, quickTimeout, cfg.BandwidthProcessBuffer, quickSizeMB, quickWorkers, cfg.ProgressPrintInterval)
