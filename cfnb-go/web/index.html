@@ -1102,7 +1102,7 @@ function renderResults(nodes) {
       '<div class="ri-m"><span>往返延迟</span> <strong class="green">' + fmt(n.latency) + ' ms</strong></div>' +
       '<div class="ri-m"><span>HTTP 抖动</span> <strong class="orange">' + fmt(n.httpJitter) + ' ms</strong></div>' +
       '<div class="ri-m"><span>HTTP 延迟</span> <strong class="amber">' + fmt(n.httpLatency) + ' ms</strong></div>' +
-      '<div class="ri-m"><span>峰值速度</span> <strong class="purple">' + fmtSpeed(n.peakSpeed) + '</strong></div></div>' +
+      '<div class="ri-m"><span>峰值速度</span> <strong class="' + getBWColor(n.peakSpeed || 0) + '">' + fmtSpeed(n.peakSpeed) + '</strong></div></div>' +
       '<div class="ri-colo">' + escapeHtml(fmtDC(n)) + '</div>' +
       '<div class="ri-bw"><div class="ri-bw-bar"><div class="ri-bw-fill ' + bwColor + '" style="width:' + bwPct + '%"></div></div><span class="ri-bw-val ' + bwColor + '">' + fmtSpeed(speed) + '</span></div></div>';
   }).join('');
@@ -1220,7 +1220,7 @@ function renderHistory(skipAnimation) {
       html += '<div class="hm-row">';
       html += '<span class="hm">实测带宽: <strong class="' + bwCls + '">' + fmtSpeed(speed) + '</strong></span>';
       html += '<span class="hm">往返延迟: <strong>' + (lat > 0 ? lat.toFixed(1) + ' ms' : '-') + '</strong></span>';
-      html += '<span class="hm">峰值速度: <strong>' + fmtPeakSpeed(peak) + '</strong></span>';
+      html += '<span class="hm">峰值速度: <strong class="' + (peak <= 0 ? 'fail' : (peak >= 10 ? 'ok' : (peak >= 3 ? 'mid' : 'red'))) + '">' + fmtSpeed(peak) + '</strong></span>';
       html += '<span class="hm">数据中心: <strong>' + dc + '</strong></span>';
       html += '<span class="hm">HTTP 抖动: <strong>' + (jitter > 0 ? jitter.toFixed(1) + ' ms' : '-') + '</strong></span>';
       html += '<span class="hm">HTTP 延迟: <strong>' + (httpLat > 0 ? httpLat.toFixed(1) + ' ms' : '-') + '</strong></span>';
@@ -1247,7 +1247,7 @@ function renderHistory(skipAnimation) {
       html += '<div class="hm-row">';
       html += '<span class="hm">实测带宽: <strong class="' + nbwCls + '">' + fmtSpeed(nspeed) + '</strong></span>';
       html += '<span class="hm">往返延迟: <strong>' + (nlat > 0 ? nlat.toFixed(1) + ' ms' : '-') + '</strong></span>';
-      html += '<span class="hm">峰值速度: <strong>' + fmtPeakSpeed(npeak) + '</strong></span>';
+      html += '<span class="hm">峰值速度: <strong class="' + (npeak <= 0 ? 'fail' : (npeak >= 10 ? 'ok' : (npeak >= 3 ? 'mid' : 'red'))) + '">' + fmtSpeed(npeak) + '</strong></span>';
       html += '<span class="hm">数据中心: <strong>' + ndc + '</strong></span>';
       html += '<span class="hm">HTTP 抖动: <strong>' + (njitter > 0 ? njitter.toFixed(1) + ' ms' : '-') + '</strong></span>';
       html += '<span class="hm">HTTP 延迟: <strong>' + (nhttpLat > 0 ? nhttpLat.toFixed(1) + ' ms' : '-') + '</strong></span>';
