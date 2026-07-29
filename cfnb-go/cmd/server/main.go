@@ -576,6 +576,11 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 		}
 		mu.Unlock()
 		broadcast()
+		mu.Lock()
+		if currentRunID == runID {
+			status.Results = nil
+		}
+		mu.Unlock()
 	}()
 
 	addLog("开始 CFNB 管道...")
