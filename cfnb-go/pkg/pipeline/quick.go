@@ -106,44 +106,79 @@ func QuickScan(ctx context.Context, cfg *config.Config, minBandwidth float64, de
 		return nil, fmt.Errorf("候选池为空")
 	}
 
-quickSizeMB := 5.0
-	quickTimeout := 10.0
+	quickSizeMB := 1.0
 	bwURL := strings.Replace(cfg.BandwidthURLTemplate, "{bytes}", fmt.Sprintf("%d", int(quickSizeMB*1024*1024)), 1)
-	quickWorkers := 20
-	log("\n快速测速（文件大小 %.1fMB，并发 %d，超时 %.0fs）...", quickSizeMB, quickWorkers, quickTimeout)
+	log("\n第一轮快速测速（文件大小 %.1fMB，并发 %d，超时 %.0fs）...", quickSizeMB, cfg.BandwidthWorkers, cfg.BandwidthTimeout)
 
-	allResults := bandwidth.Filter(ctx, candidates, bwURL, cfg.BandwidthConnectTimeout, quickTimeout, cfg.BandwidthProcessBuffer, quickSizeMB, quickWorkers, cfg.ProgressPrintInterval)
-	if len(allResults) == 0 {
-		return nil, fmt.Errorf("测速无有效结果")
+	firstRound := bandwidth.Filter(ctx, candidates, bwURL, cfg.BandwidthConnectTimeout, cfg.BandwidthTimeout, cfg.BandwidthProcessBuffer, quickSizeMB, cfg.BandwidthWorkers, cfg.ProgressPrintInterval)
+	if len(firstRound) == 0 {
+		return nil, fmt.Errorf("第一轮测速无有效结果")
 	}
 
-	sort.Slice(allResults, func(i, j int) bool {
-		return allResults[i].Speed > allResults[j].Speed
+	sort.Slice(firstRound, func(i, j int) bool {
+		return firstRound[i].Speed > firstRound[j].Speed
 	})
 
 	var aboveThreshold []bandwidth.Result
-	for _, r := range allResults {
+	for _, r := range firstRound {
 		if r.Speed >= minBandwidth {
 			aboveThreshold = append(aboveThreshold, r)
 		}
 	}
 
-	log("测速完成: %d 个节点高于 %.0f Mbps", len(aboveThreshold), minBandwidth)
+	log("第一轮测速完成: %d 个节点高于 %.0f Mbps", len(aboveThreshold), minBandwidth)
 
 	if len(aboveThreshold) == 0 {
-		aboveThreshold = allResults
+		aboveThreshold = firstRound
+		keep := desiredCount * 2
+		if keep > len(aboveThreshold) {
+			keep = len(aboveThreshold)
+		}
+		aboveThreshold = aboveThreshold[:keep]
+	} else {
+		keep := desiredCount * 2
+		if keep > len(aboveThreshold) {
+			keep = len(aboveThreshold)
+		}
+		aboveThreshold = aboveThreshold[:keep]
 	}
+
+	finalCandidates := make([]string, len(aboveThreshold))
+	for i, r := range aboveThreshold {
+		finalCandidates[i] = r.Node
+	}
+
+	finalSizeMB := 25.0
+	finalURL := strings.Replace(cfg.BandwidthURLTemplate, "{bytes}", fmt.Sprintf("%d", int(finalSizeMB*1024*1024)), 1)
+	log("\n第二轮精准测速（文件大小 %.1fMB，共 %d 个节点）...", finalSizeMB, len(finalCandidates))
+
+	finalTimeout := 15.0
+	finalResults := bandwidth.Filter(ctx, finalCandidates, finalURL, cfg.BandwidthConnectTimeout, finalTimeout, cfg.BandwidthProcessBuffer, finalSizeMB, cfg.BandwidthWorkers, cfg.ProgressPrintInterval)
+	if len(finalResults) == 0 {
+		log("第二轮测速无有效结果，使用第一轮结果")
+		finalResults = aboveThreshold
+	}
+
+	sort.Slice(finalResults, func(i, j int) bool {
+		return finalResults[i].Speed > finalResults[j].Speed
+	})
 
 	keep := desiredCount
-	if keep > len(aboveThreshold) {
-		keep = len(aboveThreshold)
+	if keep > len(finalResults) {
+		keep = len(finalResults)
 	}
-	aboveThreshold = aboveThreshold[:keep]
+	finalResults = finalResults[:keep]
 
 	log("\n================ 快筛结果 ================")
+	speedMap := make(map[string]float64)
+	peakMap := make(map[string]float64)
+	for _, r := range finalResults {
+		speedMap[r.Node] = r.Speed
+		peakMap[r.Node] = r.PeakMbps
+	}
 
 	var quickNodes []QuickNodeInfo
-	for i, r := range aboveThreshold {
+	for i, r := range finalResults {
 		lat := latencyMap[r.Node] * 1000
 		ccTag := ""
 		country := ""
@@ -152,6 +187,9 @@ quickSizeMB := 5.0
 			ccTag = r.Node[idx+1:]
 			country = ccTag
 		}
+		parts := strings.SplitN(r.Node, "#", 2)
+		nodeStr := parts[0]
+		_ = nodeStr
 
 		log("%d. %s 速度 %.2f Mbps 延迟 %.2f ms", i+1, r.Node, r.Speed, lat)
 		quickNodes = append(quickNodes, QuickNodeInfo{
