@@ -680,7 +680,12 @@ function loadConfig() {
       S('cfgUseDirectIP').checked = saved.useDirectIP;
       toggleDataSource();
     }
-    if (saved.sourceURLs && saved.sourceURLs.length > 0) S('cfgSources').value = saved.sourceURLs.join('\n');
+    if (saved.sourceURLs && saved.sourceURLs.length > 0) {
+      var defaultSources = ['https://zip.cm.edu.kg/all.txt', 'https://countrymerge.pages.dev/all.txt'];
+      var merged = saved.sourceURLs.slice();
+      defaultSources.forEach(function(u) { if (merged.indexOf(u) === -1) merged.push(u); });
+      S('cfgSources').value = merged.join('\n');
+    }
     if (saved.directIPs && saved.directIPs.length > 0) S('cfgDirectIPs').value = saved.directIPs.join('\n');
     updateDirectIPCount();
     if (saved.dnsBlacklist !== undefined) {
