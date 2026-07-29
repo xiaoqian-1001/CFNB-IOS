@@ -989,6 +989,7 @@ function connectSSE() {
 
 function updateUI(s) {
   var btn = S('actionBtn');
+  var prevRunning = running;
   running = s.running;
   if (s.running) {
     btn.innerHTML = '<span class="btn-spinner"></span> 停止扫描';
@@ -1005,7 +1006,7 @@ function updateUI(s) {
     scanStart = 0;
     setControlsDisabled(false);
     s.progress = '完成';
-    showToast('扫描完成');
+    if (prevRunning) showToast('扫描完成');
     saveHistory(s.results);
   } else {
     if (initialLoad) { initialLoad = false; return; }
