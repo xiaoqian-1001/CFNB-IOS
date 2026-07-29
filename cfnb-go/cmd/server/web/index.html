@@ -1551,10 +1551,8 @@ function loadTheme() {
   applyTheme(saved);
 }
 loadTheme();
-connectSSE();
-connectQSSE();
-fetchLocalIP();
-qsLoadConfig();
+
+// Init DNS toggle from storage
 if (localStorage.getItem('cfnbDnsEnabled') === '1') {
   S('dnsEnableTrack').classList.add('on');
   S('dnsEnableToggle').checked = true;
@@ -1588,6 +1586,9 @@ try {
     if (git.format) S('gitFormat').value = git.format;
   }
 } catch(e) {}
+
+connectSSE();
+fetchLocalIP();
 
 function copyText(t) {
   navigator.clipboard.writeText(t).catch(function(){});
