@@ -721,6 +721,8 @@ func runQuickScan(ctx context.Context, qc QuickRunConfig, runID int64) {
 		quickBroadcast()
 	}()
 
+	quickAddLog("开始快筛...")
+
 	cfg, err := config.Load("config.json")
 	if err != nil {
 		quickAddLog("错误: 无法加载配置文件: " + err.Error())
