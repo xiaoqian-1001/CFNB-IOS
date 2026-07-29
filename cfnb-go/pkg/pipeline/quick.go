@@ -106,8 +106,8 @@ func QuickScan(ctx context.Context, cfg *config.Config, minBandwidth float64, de
 		return nil, fmt.Errorf("候选池为空")
 	}
 
-quickSizeMB := 5.0
-	quickTimeout := 10.0
+quickSizeMB := 10.0
+	quickTimeout := 15.0
 	bwURL := strings.Replace(cfg.BandwidthURLTemplate, "{bytes}", fmt.Sprintf("%d", int(quickSizeMB*1024*1024)), 1)
 	quickWorkers := 5
 	log("\n快速测速（文件大小 %.1fMB，并发 %d，超时 %.0fs）...", quickSizeMB, quickWorkers, quickTimeout)
