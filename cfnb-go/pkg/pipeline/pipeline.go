@@ -274,8 +274,6 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 
 	if cfg.GitHubSyncEnabled {
 		sync.SyncToGitHub(cfg.GitHubSyncMaxRetries, cfg.GitHubSyncRetryDelay, cfg.GitSyncProcessTimeout)
-	} else {
-		log("Git 同步未启用。")
 	}
 
 	providerMap := make(map[string]string)
@@ -576,7 +574,6 @@ func writeIPTxt(finalSelected []string, cfg *config.Config, speedMap, latencyMap
 
 func runDNSUpdate(finalSelected []string, cfg *config.Config, availIPInfo map[string]string, bwResults []bandwidth.Result, latencyMap, httpLatencyMap, httpJitterMap map[string]float64, notifier func(string, string), log func(string, ...interface{})) {
 	if !cfg.CFEnabled {
-		log("Cloudflare DNS 批量更新未启用。")
 		return
 	}
 
