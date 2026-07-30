@@ -124,7 +124,6 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 		return nil, err
 	}
 
-	log("")
 	log("【前置筛选】")
 
 	nodes = prepFilter(nodes, cfg, log)
@@ -136,7 +135,6 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 		return nil, err
 	}
 
-	log("")
 	log("开始 TCP 连通性测试 | 并发:%d 超时:%.0fs", cfg.MaxWorkers, cfg.Timeout)
 
 	tcpResults := tcp.TestAll(ctx, nodes, cfg.Timeout, cfg.TCPProbes, cfg.MinSuccessRate, cfg.MaxWorkers)
@@ -161,7 +159,6 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 	availCountryInfo := make(map[string]string)
 	availColoInfo := make(map[string]string)
 	if cfg.TestAvailability {
-		log("")
 		log("【第一轮|可用性检测】")
 		log("开始筛选%d个候选节点", len(candidates))
 		var availExtra map[string]map[string]string
@@ -211,7 +208,6 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 	httpLatencyMap := make(map[string]float64)
 	httpJitterMap := make(map[string]float64)
 	if cfg.HTTPTestEnabled {
-		log("")
 		log("【第二轮|HTTP连通检测】")
 		log("开始筛选%d个候选节点", len(candidates))
 		candidates, httpLatencyMap, httpJitterMap = httpcheck.FilterWithRetry(
@@ -234,7 +230,6 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 		return nil, err
 	}
 
-	log("")
 	log("【第三轮|带宽测速】")
 	log("带宽测速启动 | 待测节点:%d 并发:%d 超时:%.0fs", len(candidates), cfg.BandwidthWorkers, cfg.BandwidthTimeout)
 	bwResults := bandwidth.FilterWithRetry(
@@ -576,9 +571,7 @@ func selectCandidates(results []tcp.TCPResult, cfg *config.Config, log func(stri
 
 func printFinalNodes(finalSelected []string, speedMap map[string]float64, latencyMap map[string]float64, httpLatencyMap map[string]float64, httpJitterMap map[string]float64, log func(string, ...interface{})) {
 	topN := len(finalSelected)
-	log("")
 	log("================ 最终优选节点(Top%d) ================", topN)
-	log("")
 	for i, node := range finalSelected {
 		speed := speedMap[node]
 		tcpLat := latencyMap[node]
