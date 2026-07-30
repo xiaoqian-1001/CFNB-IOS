@@ -294,7 +294,7 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 	addLog(fmt.Sprintf("前置过滤: 端口=[%s](%v), 黑名单国家=[%s](%v)",
 		strings.Join(portStrs, ","), boolPtrVal(rc.PreFilterPortEnabled),
 		strings.Join(rc.PreFilterBlockedCountries, ","), boolPtrVal(rc.PreFilterBlockedEnabled)))
-	addLog("启动 CFNB 优选管道...")
+	addLog("小钱CloudFlare优选IP-LootBox系统 | 正在启动优选管道")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	mu.Lock()
