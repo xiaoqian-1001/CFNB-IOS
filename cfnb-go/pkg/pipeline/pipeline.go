@@ -86,9 +86,10 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 		modeStr = fmt.Sprintf("每个国家最优%d个", cfg.PerCountryTopN)
 	}
 	log("模式: %s | TCP探测: %d次 | 最低成功率: %.0f%%", modeStr, cfg.TCPProbes, cfg.MinSuccessRate*100)
-	log("可用性: %s | HTTP检测: %s | 屏蔽国家: %s | DNS黑名单: %s | 风险等级: %s | IPv6过滤: %s",
+	log("可用性: %s | HTTP检测: %s | 屏蔽国家: %s ",
 		boolStr(cfg.TestAvailability), boolStr(cfg.HTTPTestEnabled),
-		boolStr(cfg.PreFilterBlockedEnabled),
+		boolStr(cfg.PreFilterBlockedEnabled))
+	log("DNS黑名单: %s | 风险等级: %s | IPv6过滤: %s",
 		boolStr(cfg.DNSIPRiskFilterEnabled),
 		map[bool]string{true: cfg.DNSIPRiskMaxLevel, false: "禁用"}[cfg.DNSIPRiskFilterEnabled],
 		boolStr(cfg.FilterIPv6Availability))
