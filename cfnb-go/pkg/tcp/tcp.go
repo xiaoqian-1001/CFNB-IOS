@@ -120,7 +120,7 @@ func TestAll(ctx context.Context, nodes []string, timeout float64, probes int, m
 		}
 		progress := 100 * completed / total
 		if progress >= nextThreshold || completed == total {
-			fmt.Printf("进度：%d%%\n", progress)
+			fmt.Printf("进度：%d/%d (%d%%)\n", completed, total, progress)
 			nextThreshold += 10
 		}
 	}

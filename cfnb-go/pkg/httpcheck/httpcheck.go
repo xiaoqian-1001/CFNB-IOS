@@ -166,8 +166,7 @@ func FilterCandidates(ctx context.Context, candidates []string, timeout, connect
 	}()
 
 	completed := 0
-	var progressParts []string
-	nextPrintPct := 10
+	lastPrintPct := -1
 	for r := range results {
 		if ctx.Err() != nil {
 			break
@@ -178,15 +177,12 @@ func FilterCandidates(ctx context.Context, candidates []string, timeout, connect
 			latencyMap[r.Node] = r.Latency
 			jitterMap[r.Node] = r.Jitter
 		}
-		pct := completed * 100 / total
-		if pct >= nextPrintPct || completed == total {
+		printPct := completed * 100 / total
+		if printPct/10 != lastPrintPct/10 || completed == total {
+			lastPrintPct = printPct
 			pctF := float64(completed) / float64(total) * 100
-			progressParts = append(progressParts, fmt.Sprintf("%.1f%% 通过:%d", pctF, len(passed)))
-			nextPrintPct += 10
+			fmt.Printf("进度：%d/%d (%.1f%%) 通过数量：%d\n", completed, total, pctF, len(passed))
 		}
-	}
-	if len(progressParts) > 0 {
-		fmt.Printf("进度：%s\n", strings.Join(progressParts, " → "))
 	}
 	return
 }

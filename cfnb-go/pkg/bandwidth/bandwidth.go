@@ -210,7 +210,7 @@ func Filter(ctx context.Context, candidates []string, bwURL string, connectTimeo
 		}
 		pct := completed * 100 / total
 		if pct >= progressThreshold || completed == total {
-			fmt.Printf("进度：%d%%\n", pct)
+			fmt.Printf("进度：%d/%d (%d%%)\n", completed, total, pct)
 			progressThreshold += 10
 		}
 	}
