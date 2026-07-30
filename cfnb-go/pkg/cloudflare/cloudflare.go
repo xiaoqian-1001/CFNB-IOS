@@ -152,26 +152,48 @@ func updateARecords(zoneID, recordName string, ttl int, proxied bool, ipList []s
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		fmt.Printf("\n[DNS 更新] 尝试 %d/%d...\n", attempt, maxRetries)
 
-		listURL := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records?type=A&name=%s", zoneID, recordName)
-		resp, err := cfRequest(client, "GET", listURL, nil, headers)
-		if err != nil {
-			if attempt < maxRetries {
-				time.Sleep(time.Duration(retryDelay * float64(time.Second)))
+		allRecords := make([]DNSRecord, 0)
+		page := 1
+		for {
+			listURL := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records?type=A&name=%s&per_page=1000&page=%d", zoneID, recordName, page)
+			resp, err := cfRequest(client, "GET", listURL, nil, headers)
+			if err != nil {
+				if attempt < maxRetries {
+					time.Sleep(time.Duration(retryDelay * float64(time.Second)))
+				}
+				break
 			}
-			continue
+
+			var listResp struct {
+				Success    bool          `json:"success"`
+				Errors     []interface{} `json:"errors"`
+				Result     []DNSRecord   `json:"result"`
+				ResultInfo struct {
+					Page       int `json:"page"`
+					TotalPages int `json:"total_pages"`
+				} `json:"result_info"`
+			}
+			json.Unmarshal(resp, &listResp)
+			if !listResp.Success {
+				if attempt < maxRetries {
+					time.Sleep(time.Duration(retryDelay * float64(time.Second)))
+				}
+				break
+			}
+
+			allRecords = append(allRecords, listResp.Result...)
+			if page >= listResp.ResultInfo.TotalPages {
+				break
+			}
+			page++
 		}
 
-		var listResp CFResponse
-		json.Unmarshal(resp, &listResp)
-		if !listResp.Success {
-			if attempt < maxRetries {
-				time.Sleep(time.Duration(retryDelay * float64(time.Second)))
-			}
-			continue
+		if len(allRecords) == 0 && len(ipList) == 0 {
+			return nil
 		}
 
 		deletes := make([]map[string]string, 0)
-		for _, rec := range listResp.Result {
+		for _, rec := range allRecords {
 			deletes = append(deletes, map[string]string{"id": rec.ID})
 		}
 
@@ -190,7 +212,7 @@ func updateARecords(zoneID, recordName string, ttl int, proxied bool, ipList []s
 		body, _ := json.Marshal(payload)
 
 		batchURL := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records/batch", zoneID)
-		resp, err = cfRequest(client, "POST", batchURL, body, headers)
+		resp, err := cfRequest(client, "POST", batchURL, body, headers)
 		if err != nil {
 			fmt.Printf("[尝试 %d/%d] DNS 更新出错: %v\n", attempt, maxRetries, err)
 			if attempt < maxRetries {
@@ -209,7 +231,7 @@ func updateARecords(zoneID, recordName string, ttl int, proxied bool, ipList []s
 			continue
 		}
 
-		fmt.Printf("Cloudflare DNS 批量更新成功！已将 %s 指向 %d 个 IP。\n", recordName, len(ipList))
+		fmt.Printf("Cloudflare DNS 批量更新成功！已将 %s 指向 %d 个 IP（已清理 %d 条旧记录）。\n", recordName, len(ipList), len(deletes))
 		return nil
 	}
 
@@ -222,19 +244,48 @@ func updateTXTRecords(zoneID, recordName string, ttl int, contentList []string, 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		fmt.Printf("\n[TXT 记录更新] 尝试 %d/%d...\n", attempt, maxRetries)
 
-		listURL := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records?type=TXT&name=%s", zoneID, recordName)
-		resp, err := cfRequest(client, "GET", listURL, nil, headers)
-		if err != nil {
-			if attempt < maxRetries {
-				time.Sleep(time.Duration(retryDelay * float64(time.Second)))
+		allRecords := make([]DNSRecord, 0)
+		page := 1
+		for {
+			listURL := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records?type=TXT&name=%s&per_page=1000&page=%d", zoneID, recordName, page)
+			resp, err := cfRequest(client, "GET", listURL, nil, headers)
+			if err != nil {
+				if attempt < maxRetries {
+					time.Sleep(time.Duration(retryDelay * float64(time.Second)))
+				}
+				break
 			}
-			continue
+
+			var listResp struct {
+				Success    bool          `json:"success"`
+				Errors     []interface{} `json:"errors"`
+				Result     []DNSRecord   `json:"result"`
+				ResultInfo struct {
+					Page       int `json:"page"`
+					TotalPages int `json:"total_pages"`
+				} `json:"result_info"`
+			}
+			json.Unmarshal(resp, &listResp)
+			if !listResp.Success {
+				if attempt < maxRetries {
+					time.Sleep(time.Duration(retryDelay * float64(time.Second)))
+				}
+				break
+			}
+
+			allRecords = append(allRecords, listResp.Result...)
+			if page >= listResp.ResultInfo.TotalPages {
+				break
+			}
+			page++
 		}
 
-		var listResp CFResponse
-		json.Unmarshal(resp, &listResp)
+		if len(allRecords) == 0 && len(contentList) == 0 {
+			return nil
+		}
+
 		deletes := make([]map[string]string, 0)
-		for _, rec := range listResp.Result {
+		for _, rec := range allRecords {
 			deletes = append(deletes, map[string]string{"id": rec.ID})
 		}
 
@@ -252,7 +303,7 @@ func updateTXTRecords(zoneID, recordName string, ttl int, contentList []string, 
 		body, _ := json.Marshal(payload)
 
 		batchURL := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records/batch", zoneID)
-		resp, err = cfRequest(client, "POST", batchURL, body, headers)
+		resp, err := cfRequest(client, "POST", batchURL, body, headers)
 		if err != nil {
 			fmt.Printf("[尝试 %d/%d] TXT 更新出错: %v\n", attempt, maxRetries, err)
 			if attempt < maxRetries {
@@ -271,7 +322,7 @@ func updateTXTRecords(zoneID, recordName string, ttl int, contentList []string, 
 			continue
 		}
 
-		fmt.Printf("Cloudflare TXT 记录批量更新成功！共 %d 条记录。\n", len(contentList))
+		fmt.Printf("Cloudflare TXT 记录批量更新成功！共 %d 条记录（已清理 %d 条旧记录）。\n", len(contentList), len(deletes))
 		return nil
 	}
 
