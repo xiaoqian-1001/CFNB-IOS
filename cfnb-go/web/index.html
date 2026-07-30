@@ -126,21 +126,21 @@ textarea:disabled{opacity:0.4;cursor:not-allowed}
 .stat-val.red{color:var(--danger)}
 .stat-lbl{font-size:10px;color:var(--muted2);margin-top:4pt;letter-spacing:-0.1px}
 
-.log-panel{max-height:200pt;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4pt 0;scrollbar-width:thin;scrollbar-color:var(--muted) transparent;background:#121212;border-radius:8px;margin-top:4pt}
+.log-panel{max-height:200pt;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4pt 0;scrollbar-width:thin;scrollbar-color:var(--muted) transparent;background:#0F0F0F;border-radius:8px;margin-top:4pt}
 .log-panel::-webkit-scrollbar{width:3px}
 .log-panel::-webkit-scrollbar-track{background:transparent}
 .log-panel::-webkit-scrollbar-thumb{background:var(--muted);border-radius:3px;min-height:20pt}
 .log-line{font-family:'SF Mono',ui-monospace,monospace;font-size:10px;padding:1pt 0;color:#EAEAEA;line-height:1.4;word-break:break-all}
 
-.log-line.info{color:#3399FF}
-.log-line.success{color:#39D353}
+.log-line.info{color:#EAEAEA}
+.log-line.success{color:#AAAAAA}
 .log-line.warn{color:var(--orange)}
 .log-line.error{color:#FF4444}
-.log-line.sep{color:#FF4444}
-.log-line.section-title{color:#EAEAEA;font-weight:700}
-.log-line.pre-filter{color:#3399FF}
-.log-line.scan-cfg{color:#EAEAEA}
-.log-line.final-title{color:#FF4444;font-weight:700}
+.log-line.sep{color:#FF4545}
+.log-line.section-title{color:#FF4545;font-weight:400}
+.log-line.pre-filter{color:#EAEAEA}
+
+.log-line.final-title{color:#FF4545;font-weight:700}
 
 .result-list{display:flex;flex-direction:column;gap:10px;padding:4pt 0}
 .result-item{display:flex;flex-direction:column;gap:6px;padding:14px 16px;background:var(--input-bg);border-radius:14px;transition:border-color .2s,transform .2s ease,box-shadow .2s ease;border:0.5px solid transparent;position:relative;overflow:hidden}
@@ -531,7 +531,7 @@ https://countrymerge.pages.dev/all.txt</textarea>
 </div>
 </div>
 <div class="settings-row">
-<div class="sl-label">IPv6 过滤</div>
+<div class="sl-label">IPV6 落地过滤</div>
 <div class="sl-right">
 <div class="toggle-wrap"><div class="toggle-track" id="ipv6FilterTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="cfgIPv6Filter"></div></div>
 </div>
@@ -1050,6 +1050,41 @@ function stopTimer() {
   if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
 }
 
+function highlightValues(text) {
+  var sep = text.indexOf('｜') >= 0 ? '｜' : '|';
+  var parts = text.split(sep === '｜' ? /｜/ : /\|/);
+  var result = [];
+
+  for (var p = 0; p < parts.length; p++) {
+    var seg = parts[p];
+
+    if (p === 0) {
+      var nodeMatch = seg.match(/^(\d+\.\s+)(.*)/);
+      if (nodeMatch) {
+        result.push('<span style="color:#EAEAEA">' + escHtml(nodeMatch[1]) + '</span>');
+        if (nodeMatch[2]) result.push('<span style="color:#FFD32E">' + escHtml(nodeMatch[2]) + '</span>');
+        if (p < parts.length - 1) result.push('<span style="color:#EAEAEA">' + sep + '</span>');
+        continue;
+      }
+    }
+
+    var ci = seg.indexOf(':');
+    var ci2 = seg.indexOf('：');
+    if (ci2 >= 0 && (ci < 0 || ci2 < ci)) ci = ci2;
+    if (ci > 0 && ci < seg.length - 1) {
+      result.push('<span style="color:#EAEAEA">' + escHtml(seg.substring(0, ci + 1)) + '</span><span style="color:#FFD32E">' + escHtml(seg.substring(ci + 1)) + '</span>');
+    } else {
+      result.push('<span style="color:#EAEAEA">' + escHtml(seg) + '</span>');
+    }
+    if (p < parts.length - 1) result.push('<span style="color:#EAEAEA">' + sep + '</span>');
+  }
+  return result.join('');
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 function updateLogs(logs) {
   if (!logs || logs.length <= logCache.length) return;
   var panel = S('logPanel');
@@ -1061,15 +1096,20 @@ function updateLogs(logs) {
     else if (/最终优选节点/.test(l)) className += ' final-title';
     else if (l.includes('【扫描配置】') || l.includes('【前置筛选】') || l.includes('【第一轮') || l.includes('【第二轮') || l.includes('【第三轮')) className += ' section-title';
     else if (l.indexOf('前置过滤:') === 0 || l.indexOf('端口过滤') === 0 || l.indexOf('国家黑名单过滤') === 0) className += ' pre-filter';
-    else if (l.indexOf('模式:') === 0 || l.indexOf('可用性检测:') === 0 || l.indexOf('DNS黑名单:') === 0 || l.indexOf('候选上限:') === 0) className += ' scan-cfg';
-    else if (l.includes('ERROR') || l.includes('错误')) className += ' error';
     else if (l.indexOf('启动 CFNB') === 0) className += ' info';
-    else if (l.includes('成功') || l.includes('完成') || l.includes('通过') || l.includes('已保存') || l.includes('已自动推送')) className += ' success';
     else if (l.indexOf('进度') === 0) className += ' info';
-    else if (l.includes('失败') || l.includes('跳过')) className += ' warn';
     else if (l.indexOf('第') === 0 || l.includes('正在拉取') || l.includes('正在批量') || l.includes('厂商信息')) className += ' info';
-    div.className = className;
-    div.textContent = l;
+    else if (l.includes('成功') || l.includes('完成') || l.includes('通过') || l.includes('已保存') || l.includes('已自动推送')) className += ' success';
+    else if (l.includes('失败') || l.includes('跳过')) className += ' warn';
+    else if (l.includes('ERROR') || l.includes('错误')) className += ' error';
+    var hasColon = l.indexOf(':') >= 0 || l.indexOf('：') >= 0;
+    if (className.indexOf('error') < 0 && className.indexOf('warn') < 0 && className.indexOf('sep') < 0 && className.indexOf('section-title') < 0 && className.indexOf('final-title') < 0 && !(className.indexOf('success') >= 0 && !hasColon)) {
+      div.className = 'log-line';
+      div.innerHTML = highlightValues(l);
+    } else {
+      div.className = className;
+      div.textContent = l;
+    }
     panel.appendChild(div);
   }
   logCache = logs.slice();

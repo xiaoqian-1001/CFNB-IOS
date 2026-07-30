@@ -301,7 +301,7 @@ func FetchSourceWithFallback(ctx context.Context, urlStr string, maxRetries int,
 		} else {
 			nodes = ParseAdaptive(string(body))
 		}
-		fmt.Printf("成功获取，解析节点总数：%d\n", len(nodes))
+		fmt.Printf("解析完毕 | 共获取 IP ：%d 个\n", len(nodes))
 		os.Stdout.Sync()
 		return nodes, nil
 	}

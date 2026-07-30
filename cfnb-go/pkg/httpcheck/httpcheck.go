@@ -196,7 +196,7 @@ func FilterWithRetry(ctx context.Context, candidates []string, timeout, connectT
 		if ctx.Err() != nil {
 			return candidates, make(map[string]float64), make(map[string]float64)
 		}
-		fmt.Printf("第 %d 轮检测...\n", round)
+		fmt.Printf("第 %d 轮检测\n", round)
 		passed, latencyMap, jitterMap := FilterCandidates(ctx, candidates, timeout, connectTimeout, method, jitterSamples, workers, progressInterval)
 		if len(passed) > 0 {
 			return passed, latencyMap, jitterMap

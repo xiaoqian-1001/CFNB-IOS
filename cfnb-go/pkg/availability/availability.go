@@ -193,7 +193,7 @@ func FilterWithRetry(ctx context.Context, candidates []string, apiURL string, co
 		if ctx.Err() != nil {
 			return candidates, make(map[string]string), make(map[string]string), make(map[string]map[string]string)
 		}
-		fmt.Printf("第 %d 轮检测...\n", attempt)
+		fmt.Printf("第 %d 轮检测\n", attempt)
 		passed, ipInfo, countryInfo, exitDetails := FilterCandidates(ctx, candidates, apiURL, connectTimeout, readTimeout, innerRetryEnabled, innerRetryMax, innerRetryDelay, workers, progressInterval)
 		if len(passed) > 0 {
 			return passed, ipInfo, countryInfo, exitDetails

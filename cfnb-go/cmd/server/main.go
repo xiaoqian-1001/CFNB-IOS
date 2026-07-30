@@ -291,9 +291,11 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 	for i, p := range rc.PreFilterPorts {
 		portStrs[i] = fmt.Sprintf("%d", p)
 	}
-	addLog(fmt.Sprintf("前置过滤: 端口=[%s](%v), 黑名单国家=[%s](%v)",
-		strings.Join(portStrs, ","), boolPtrVal(rc.PreFilterPortEnabled),
-		strings.Join(rc.PreFilterBlockedCountries, ","), boolPtrVal(rc.PreFilterBlockedEnabled)))
+	addLog(fmt.Sprintf("前置过滤 | 端口过滤：%s / 过滤端口：%s | 屏蔽国家：%s / 屏蔽列表：%s",
+		onOff(boolPtrVal(rc.PreFilterPortEnabled)),
+		strings.Join(portStrs, ","),
+		onOff(boolPtrVal(rc.PreFilterBlockedEnabled)),
+		strings.Join(rc.PreFilterBlockedCountries, ",")))
 	addLog("小钱CloudFlare优选IP-LootBox系统 | 正在启动优选管道")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -987,6 +989,13 @@ func boolPtrVal(b *bool) bool {
 		return false
 	}
 	return *b
+}
+
+func onOff(v bool) string {
+	if v {
+		return "启用"
+	}
+	return "禁用"
 }
 
 

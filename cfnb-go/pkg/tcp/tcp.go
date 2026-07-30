@@ -124,6 +124,5 @@ func TestAll(ctx context.Context, nodes []string, timeout float64, probes int, m
 			nextThreshold += 10
 		}
 	}
-	fmt.Println("TCP 测试完成。")
 	return allResults
 }

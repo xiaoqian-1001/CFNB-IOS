@@ -226,7 +226,7 @@ func FilterWithRetry(ctx context.Context, candidates []string, bwURL string, con
 		if ctx.Err() != nil {
 			return nil
 		}
-		fmt.Printf("第 %d 轮测试...\n", attempt)
+		fmt.Printf("第 %d 轮检测\n", attempt)
 		results := Filter(ctx, candidates, bwURL, connectTimeout, timeout, processBuffer, expectedSizeMB, workers, progressInterval)
 		if len(results) > 0 {
 			return results
