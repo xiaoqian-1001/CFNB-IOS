@@ -1058,7 +1058,7 @@ function updateLogs(logs) {
     if (l.includes('ERROR') || l.includes('错误')) div.className += ' error';
     else if (l.includes('带宽测速') || (l.includes('带宽') && l.includes('进度'))) div.className += ' success';
     else if (l.includes('HTTP')) div.className += ' info';
-    else if (l.includes('可用性')) div.className += ' warn';
+    else if (l.includes('可用性') || l.includes('DNS黑名单') || l.includes('IPv6过滤')) div.className += ' info';
     else if (l.includes('TCP') || l.includes('tcp')) div.className += ' error';
     else if (l.includes('成功') || l.includes('完成') || l.includes('通过')) div.className += ' success';
     else if (l.includes('进度') || l.includes('Phase') || l.includes('开始')) div.className += ' info';

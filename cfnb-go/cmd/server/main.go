@@ -681,6 +681,7 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 		if rc.DNSRiskMaxLevel == "关闭" {
 			cfg.DNSIPRiskFilterEnabled = false
 		} else {
+			cfg.DNSIPRiskFilterEnabled = true
 			cfg.DNSIPRiskMaxLevel = rc.DNSRiskMaxLevel
 		}
 	}
