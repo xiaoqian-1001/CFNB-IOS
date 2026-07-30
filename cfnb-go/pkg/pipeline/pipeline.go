@@ -122,6 +122,7 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 		return nil, err
 	}
 
+	log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 	log("【前置筛选】")
 
 	nodes = prepFilter(nodes, cfg, log)
@@ -157,6 +158,7 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 	availCountryInfo := make(map[string]string)
 	availColoInfo := make(map[string]string)
 	if cfg.TestAvailability {
+		log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 		log("【第一轮|可用性检测】")
 		log("开始筛选%d个候选节点", len(candidates))
 		var availExtra map[string]map[string]string
@@ -206,6 +208,7 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 	httpLatencyMap := make(map[string]float64)
 	httpJitterMap := make(map[string]float64)
 	if cfg.HTTPTestEnabled {
+		log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 		log("【第二轮|HTTP连通检测】")
 		log("开始筛选%d个候选节点", len(candidates))
 		candidates, httpLatencyMap, httpJitterMap = httpcheck.FilterWithRetry(
@@ -228,6 +231,7 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 		return nil, err
 	}
 
+	log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 	log("【第三轮|带宽测速】")
 	log("带宽测速启动 | 待测节点:%d 并发:%d 超时:%.0fs", len(candidates), cfg.BandwidthWorkers, cfg.BandwidthTimeout)
 	bwResults := bandwidth.FilterWithRetry(

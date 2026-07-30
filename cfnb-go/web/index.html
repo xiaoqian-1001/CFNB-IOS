@@ -1057,7 +1057,7 @@ function updateLogs(logs) {
     var l = logs[i];
     var div = document.createElement('div');
     var className = 'log-line';
-    if (/^={2,}/.test(l)) className += ' sep';
+    if (/^[=~]{2,}/.test(l)) className += ' sep';
     else if (/最终优选节点/.test(l)) className += ' final-title';
     else if (l.includes('【扫描配置】') || l.includes('【前置筛选】') || l.includes('【第一轮') || l.includes('【第二轮') || l.includes('【第三轮')) className += ' section-title';
     else if (l.indexOf('前置过滤:') === 0 || l.indexOf('端口过滤') === 0 || l.indexOf('国家黑名单过滤') === 0) className += ' pre-filter';
