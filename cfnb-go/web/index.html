@@ -515,6 +515,10 @@ https://countrymerge.pages.dev/all.txt</textarea>
 <div class="toggle-wrap"><div class="toggle-track" id="dnsBlacklistTrack"><div class="toggle-knob"></div><input type="checkbox" class="toggle-input" id="cfgDNSBlacklist" onchange="toggleDNSBlacklist()"></div></div>
 </div>
 </div>
+<div id="dnsBlacklistSection" class="field" style="margin-top:6px;display:none">
+<label>黑名单IP（逗号分隔）</label>
+<input type="text" id="cfgDNSBlacklistIPs" placeholder="1.2.3.4, 5.6.7.8">
+</div>
 <div class="settings-row">
 <div class="sl-label">IP机构信息</div>
 <div class="sl-right">
@@ -644,6 +648,7 @@ function saveConfig() {
     sourceURLs: S('cfgSources').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
     directIPs: S('cfgDirectIPs').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
     dnsBlacklist: S('cfgDNSBlacklist').checked,
+    dnsBlacklistIPs: S('cfgDNSBlacklistIPs').value,
     riskLevel: S('cfgRiskLevel').value,
     ipv6FilterEnabled: S('cfgIPv6Filter').checked
   };
@@ -688,10 +693,11 @@ function loadConfig() {
     }
     if (saved.directIPs && saved.directIPs.length > 0) S('cfgDirectIPs').value = saved.directIPs.join('\n');
     updateDirectIPCount();
-    if (saved.dnsBlacklist !== undefined) {
+if (saved.dnsBlacklist !== undefined) {
       S('cfgDNSBlacklist').checked = saved.dnsBlacklist;
-      toggleDNSBlacklist();
+      S('dnsBlacklistSection').style.display = saved.dnsBlacklist ? 'block' : 'none';
     }
+    if (saved.dnsBlacklistIPs) S('cfgDNSBlacklistIPs').value = saved.dnsBlacklistIPs;
     if (saved.riskLevel) S('cfgRiskLevel').value = saved.riskLevel;
     if (saved.ipv6FilterEnabled !== undefined) S('cfgIPv6Filter').checked = saved.ipv6FilterEnabled;
     if (saved.mode) {
@@ -847,6 +853,7 @@ function toggleDNSBlacklist() {
   var enabled = S('cfgDNSBlacklist').checked;
   S('riskLevelRow').style.opacity = enabled ? '1' : '0.4';
   S('cfgRiskLevel').disabled = !enabled;
+  S('dnsBlacklistSection').style.display = enabled ? 'block' : 'none';
   if (!enabled) S('cfgRiskLevel').value = '关闭';
   saveConfig();
 }
@@ -883,6 +890,7 @@ function resetConfig() {
   S('cfgPortFilter').checked = true;
   S('cfgBlockCountry').checked = true;
   S('cfgDNSBlacklist').checked = false;
+  S('cfgDNSBlacklistIPs').value = '';
   S('cfgIPv6Filter').checked = false;
   S('cfgRiskLevel').value = '关闭';
   S('cfgUseDirectIP').checked = false;
@@ -895,7 +903,7 @@ function resetConfig() {
 }
 
 function setControlsDisabled(disabled) {
-  var ids = ['cfgBandwidthSize','cfgCandidates','cfgGlobalTopN','cfgPerCountryTopN','cfgTCPProbes','cfgTCPWorkers','cfgTCPTimeout','cfgBWWorkers','cfgBWTimeout','cfgMinSuccessRate','cfgPorts','cfgBlockedCountries','cfgSources','cfgDirectIPs','cfgUseDirectIP','cfgAvailability','cfgHTTPTest','cfgPortFilter','cfgBlockCountry','cfgDNSBlacklist','cfgRiskLevel','cfgIPv6Filter'];
+  var ids = ['cfgBandwidthSize','cfgCandidates','cfgGlobalTopN','cfgPerCountryTopN','cfgTCPProbes','cfgTCPWorkers','cfgTCPTimeout','cfgBWWorkers','cfgBWTimeout','cfgMinSuccessRate','cfgPorts','cfgBlockedCountries','cfgSources','cfgDirectIPs','cfgUseDirectIP','cfgAvailability','cfgHTTPTest','cfgPortFilter','cfgBlockCountry','cfgDNSBlacklist','cfgDNSBlacklistIPs','cfgRiskLevel','cfgIPv6Filter'];
   ids.forEach(function(id) {
     var el = S(id);
     if (el) el.disabled = disabled;
@@ -936,6 +944,7 @@ function startPipeline() {
     sourceURLs: S('cfgSources').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
     directIPs: S('cfgDirectIPs').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
     dnsBlacklistFilter: S('cfgDNSBlacklist').checked,
+    dnsBlacklistIPs: S('cfgDNSBlacklistIPs').value.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
     dnsRiskMaxLevel: S('cfgRiskLevel').value,
     ipv6FilterEnabled: S('cfgIPv6Filter').checked
   };

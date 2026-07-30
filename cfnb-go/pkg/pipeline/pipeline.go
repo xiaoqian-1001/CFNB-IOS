@@ -669,6 +669,20 @@ func runDNSUpdate(finalSelected []string, cfg *config.Config, availIPInfo map[st
 				continue
 			}
 
+			if len(cfg.DNSBlacklistIPs) > 0 {
+				blocked := false
+				for _, bip := range cfg.DNSBlacklistIPs {
+					if bip == pureIP {
+						blocked = true
+						break
+					}
+				}
+				if blocked {
+					filteredByPort++
+					continue
+				}
+			}
+
 			if cfg.FilterIPv6Availability {
 				stack, ok := availIPInfo[node]
 				if ok && stack == "ipv6_only" {

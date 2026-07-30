@@ -82,8 +82,9 @@ type Config struct {
 	FilterIPv6Availability   bool `json:"FILTER_IPV6_AVAILABILITY"`
 	FilterBlockedCountriesEnabled bool `json:"FILTER_BLOCKED_COUNTRIES_ENABLED"`
 	BlockedCountries    []string `json:"BLOCKED_COUNTRIES"`
-	DNSIPRiskFilterEnabled   bool   `json:"DNS_IP_RISK_FILTER_ENABLED"`
-	DNSIPRiskMaxLevel        string `json:"DNS_IP_RISK_MAX_LEVEL"`
+	DNSIPRiskFilterEnabled   bool     `json:"DNS_IP_RISK_FILTER_ENABLED"`
+	DNSIPRiskMaxLevel        string   `json:"DNS_IP_RISK_MAX_LEVEL"`
+	DNSBlacklistIPs          []string `json:"DNS_BLACKLIST_IPS"`
 	DNSUpdateTargetCount     int    `json:"DNS_UPDATE_TARGET_COUNT"`
 	BandwidthSizeMB     float64 `json:"BANDWIDTH_SIZE_MB"`
 	BandwidthTimeout    float64 `json:"BANDWIDTH_TIMEOUT"`

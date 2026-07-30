@@ -254,6 +254,7 @@ type RunConfig struct {
 	CFEnabled                *bool    `json:"cfEnabled"`
 	GitSyncEnabled           *bool    `json:"gitSyncEnabled"`
 	DNSBlacklistFilter       *bool    `json:"dnsBlacklistFilter"`
+	DNSBlacklistIPs          []string `json:"dnsBlacklistIPs"`
 	DNSRiskMaxLevel          string   `json:"dnsRiskMaxLevel"`
 	IPv6FilterEnabled        *bool    `json:"ipv6FilterEnabled"`
 }
@@ -672,6 +673,9 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 	}
 	if rc.DNSBlacklistFilter != nil {
 		cfg.DNSIPRiskFilterEnabled = *rc.DNSBlacklistFilter
+	}
+	if len(rc.DNSBlacklistIPs) > 0 {
+		cfg.DNSBlacklistIPs = rc.DNSBlacklistIPs
 	}
 	if rc.DNSRiskMaxLevel != "" {
 		if rc.DNSRiskMaxLevel == "关闭" {
