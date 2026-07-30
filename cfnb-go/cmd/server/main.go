@@ -291,7 +291,7 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 	for i, p := range rc.PreFilterPorts {
 		portStrs[i] = fmt.Sprintf("%d", p)
 	}
-	addLog(fmt.Sprintf("前置过滤: 端口=[%s](%s), 黑名单国家=[%s](%s)",
+	addLog(fmt.Sprintf("前置过滤: 端口=[%s](%v), 黑名单国家=[%s](%v)",
 		strings.Join(portStrs, ","), boolPtrVal(rc.PreFilterPortEnabled),
 		strings.Join(rc.PreFilterBlockedCountries, ","), boolPtrVal(rc.PreFilterBlockedEnabled)))
 	addLog("启动 CFNB 优选管道...")
@@ -589,10 +589,6 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 	for i, p := range rc.PreFilterPorts {
 		portStrs[i] = fmt.Sprintf("%d", p)
 	}
-	addLog(fmt.Sprintf("前置过滤: 端口=[%s](%s), 黑名单国家=[%s](%s)",
-		strings.Join(portStrs, ","), boolPtrVal(rc.PreFilterPortEnabled),
-		strings.Join(rc.PreFilterBlockedCountries, ","), boolPtrVal(rc.PreFilterBlockedEnabled)))
-	addLog("启动 CFNB 优选管道...")
 	updateProgress("Phase 1/6: 获取数据源")
 
 	cfg, err := config.Load("config.json")
