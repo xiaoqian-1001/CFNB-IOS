@@ -45,25 +45,36 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 	oldStdout := os.Stdout
 	pr, pw, _ := os.Pipe()
 	os.Stdout = pw
-	done := make(chan struct{})
-	go func() {
-		defer pr.Close()
-		buf := make([]byte, 4096)
-		for {
-			n, err := pr.Read(buf)
-			if n > 0 {
-				output.Write(buf[:n])
+	pipeDone := make(chan struct{})
+	startPipeReader := func() {
+		pipeDone = make(chan struct{})
+		go func() {
+			defer pr.Close()
+			buf := make([]byte, 4096)
+			for {
+				n, err := pr.Read(buf)
+				if n > 0 {
+					output.Write(buf[:n])
+				}
+				if err != nil {
+					close(pipeDone)
+					return
+				}
 			}
-			if err != nil {
-				close(done)
-				return
-			}
-		}
-	}()
+		}()
+	}
+	startPipeReader()
+	flushPipe := func() {
+		pw.Close()
+		<-pipeDone
+		pr, pw, _ = os.Pipe()
+		os.Stdout = pw
+		startPipeReader()
+	}
 	defer func() {
 		pw.Close()
 		os.Stdout = oldStdout
-		<-done
+		<-pipeDone
 	}()
 
 	if err := ctx.Err(); err != nil {
@@ -129,6 +140,7 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 	log("开始 TCP 连通性测试 | 并发:%d 超时:%.0fs", cfg.MaxWorkers, cfg.Timeout)
 
 	tcpResults := tcp.TestAll(ctx, nodes, cfg.Timeout, cfg.TCPProbes, cfg.MinSuccessRate, cfg.MaxWorkers)
+	flushPipe()
 	if len(tcpResults) == 0 {
 		log("没有通过成功率筛选的节点，请检查网络或降低 MIN_SUCCESS_RATE。")
 		return nil, fmt.Errorf("没有通过成功率筛选的节点")
@@ -168,6 +180,7 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 			cfg.ProgressPrintInterval,
 			notifier,
 		)
+		flushPipe()
 		for node, info := range availExtra {
 			if colo, ok := info["colo"]; ok && colo != "" {
 				availColoInfo[node] = colo
@@ -214,6 +227,7 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 			cfg.HTTPTestRoundDelay,
 			notifier,
 		)
+		flushPipe()
 		log("HTTP检测完成，有效节点：%d", len(candidates))
 	}
 	if err := ctx.Err(); err != nil {
@@ -237,6 +251,7 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 		cfg.BandwidthRetryDelay,
 		notifier,
 	)
+	flushPipe()
 	log("带宽测速全部完成")
 
 	speedMap := make(map[string]float64)
