@@ -155,7 +155,6 @@ func Filter(ctx context.Context, candidates []string, bwURL string, connectTimeo
 		return nil
 	}
 
-	fmt.Printf("\n开始带宽测速（对前 %d 个节点，并发 %d，超时 %.0fs）...\n", len(candidates), workers, timeout)
 	total := len(candidates)
 
 	tasks := make(chan string, total)
@@ -200,7 +199,7 @@ func Filter(ctx context.Context, candidates []string, bwURL string, connectTimeo
 
 	var allResults []Result
 	completed := 0
-	lastPrint := time.Now()
+	progressThreshold := 10
 	for r := range results {
 		if ctx.Err() != nil {
 			break
@@ -209,14 +208,12 @@ func Filter(ctx context.Context, candidates []string, bwURL string, connectTimeo
 		if r.Speed > 0 {
 			allResults = append(allResults, r)
 		}
-		now := time.Now()
-		if now.Sub(lastPrint) >= time.Duration(progressInterval)*time.Second || completed == total {
-			fmt.Printf("\n[带宽测速] 进度：%d/%d (%.1f%%)", completed, total, float64(completed)/float64(total)*100)
-			lastPrint = now
+		pct := completed * 100 / total
+		if pct >= progressThreshold || completed == total {
+			fmt.Printf("进度：%d%%\n", pct)
+			progressThreshold += 10
 		}
 	}
-
-	fmt.Println()
 
 	sort.Slice(allResults, func(i, j int) bool {
 		return allResults[i].Speed > allResults[j].Speed
@@ -229,7 +226,7 @@ func FilterWithRetry(ctx context.Context, candidates []string, bwURL string, con
 		if ctx.Err() != nil {
 			return nil
 		}
-		fmt.Printf("\n[带宽测速] 第 %d 轮测试...\n", attempt)
+		fmt.Printf("第 %d 轮测试...\n", attempt)
 		results := Filter(ctx, candidates, bwURL, connectTimeout, timeout, processBuffer, expectedSizeMB, workers, progressInterval)
 		if len(results) > 0 {
 			return results
@@ -244,7 +241,6 @@ func FilterWithRetry(ctx context.Context, candidates []string, bwURL string, con
 		}
 	}
 
-	fmt.Println("\n带宽测速多次重试仍无有效结果。")
 	if notify != nil {
 		notify(fmt.Sprintf("带宽测速经 %d 轮尝试后仍无有效结果。", retryMax), "带宽测速全部失败")
 	}

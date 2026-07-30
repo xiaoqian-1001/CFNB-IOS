@@ -1055,21 +1055,18 @@ function updateLogs(logs) {
   for (var i = logCache.length; i < logs.length; i++) {
     var l = logs[i];
     var div = document.createElement('div');
-    div.className = 'log-line';
-    if (l.startsWith('~')) div.className += ' sep';
-    else if (l.includes('【 前置过滤 】')) div.className += ' section-title';
-    else if (l.includes('【 扫描配置 】')) div.className += ' section-title';
-    else if (l.indexOf('端口=') === 0) div.className += ' pre-filter';
-    else if (l.indexOf('模式：') === 0 || l.indexOf('可用性检测：') === 0 || l.indexOf('DNS黑名单过滤：') === 0 || l.indexOf('候选上限：') === 0) div.className += ' scan-cfg';
-    else if (l.includes('ERROR') || l.includes('错误')) div.className += ' error';
-    else if (l.includes('带宽测速') || (l.includes('带宽') && l.includes('进度'))) div.className += ' success';
-    else if (l.includes('HTTP')) div.className += ' info';
-    else if (l.includes('可用性') || l.includes('DNS黑名单') || l.includes('IPv6')) div.className += ' info';
-    else if (l.includes('TCP') || l.includes('tcp')) div.className += ' error';
-    else if (l.includes('成功') || l.includes('完成') || l.includes('通过')) div.className += ' success';
-    else if (l.includes('进度') || l.includes('Phase') || l.includes('开始')) div.className += ' info';
-    else if (l.includes('失败') || l.includes('跳过')) div.className += ' warn';
-    div.textContent = l;
+    var className = 'log-line';
+    if (/^={2,}/.test(l)) className += ' sep';
+    else if (l.includes('【扫描配置】') || l.includes('【前置筛选】') || l.includes('【第一轮') || l.includes('【第二轮') || l.includes('【第三轮') || /最终优选节点/.test(l)) className += ' section-title';
+    else if (l.indexOf('前置过滤:') === 0 || l.indexOf('端口过滤') === 0 || l.indexOf('国家黑名单过滤') === 0) className += ' pre-filter';
+    else if (l.indexOf('模式:') === 0 || l.indexOf('可用性检测:') === 0 || l.indexOf('DNS黑名单:') === 0 || l.indexOf('候选上限:') === 0) className += ' scan-cfg';
+    else if (l.includes('ERROR') || l.includes('错误')) className += ' error';
+    else if (l.indexOf('启动 CFNB') === 0) className += ' info';
+    else if (l.includes('成功') || l.includes('完成') || l.includes('通过')) className += ' success';
+    else if (l.indexOf('进度') === 0) className += ' info';
+    else if (l.includes('失败') || l.includes('跳过')) className += ' warn';
+    else if (l.includes('正在批量') || l.includes('厂商信息')) className += ' info';
+    div.className = className;
     panel.appendChild(div);
   }
   logCache = logs.slice();

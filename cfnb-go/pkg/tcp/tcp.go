@@ -67,8 +67,6 @@ func TestAll(ctx context.Context, nodes []string, timeout float64, probes int, m
 		return nil
 	}
 
-	fmt.Printf("开始 TCP 连接测试（超时 %.0fs，并发 %d）...\n", timeout, workers)
-
 	tasks := make(chan string, total)
 	results := make(chan *TCPResult, total)
 
@@ -122,10 +120,10 @@ func TestAll(ctx context.Context, nodes []string, timeout float64, probes int, m
 		}
 		progress := 100 * completed / total
 		if progress >= nextThreshold || completed == total {
-			fmt.Printf("\n进度：%d/%d (%d%%)", completed, total, progress)
+			fmt.Printf("进度：%d%%\n", progress)
 			nextThreshold += 10
 		}
 	}
-	fmt.Println("\nTCP 测试完成！")
+	fmt.Println("TCP 测试完成。")
 	return allResults
 }

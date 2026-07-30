@@ -252,7 +252,7 @@ func FetchSourceWithFallback(ctx context.Context, urlStr string, maxRetries int,
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		msg := fmt.Sprintf("正在请求数据源 %s (尝试 %d/%d) ...", urlStr, attempt, maxRetries)
+		msg := fmt.Sprintf("正在拉取数据源: %s (尝试 %d/%d)", urlStr, attempt, maxRetries)
 		fmt.Println(msg)
 		os.Stdout.Sync()
 
@@ -263,11 +263,11 @@ func FetchSourceWithFallback(ctx context.Context, urlStr string, maxRetries int,
 
 		resp, err := client.Do(req)
 		if err != nil {
-			msg := fmt.Sprintf("请求失败 (%s): %v", urlStr, err)
+			msg := fmt.Sprintf("请求超时")
 			fmt.Println(msg)
 			os.Stdout.Sync()
 			if attempt < maxRetries {
-				retryMsg := fmt.Sprintf("等待 %.0f 秒后重试...", retryDelay)
+				retryMsg := fmt.Sprintf("等待%.0fs后重试", retryDelay)
 				fmt.Println(retryMsg)
 				os.Stdout.Sync()
 				select {
@@ -301,7 +301,7 @@ func FetchSourceWithFallback(ctx context.Context, urlStr string, maxRetries int,
 		} else {
 			nodes = ParseAdaptive(string(body))
 		}
-		fmt.Printf("从 %s 解析出 %d 个节点。\n", urlStr, len(nodes))
+		fmt.Printf("成功获取，解析节点总数：%d\n", len(nodes))
 		os.Stdout.Sync()
 		return nodes, nil
 	}

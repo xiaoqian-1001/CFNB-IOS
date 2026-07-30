@@ -119,7 +119,6 @@ func FilterCandidates(ctx context.Context, candidates []string, apiURL string, c
 		return
 	}
 
-	fmt.Printf("\n对 %d 个候选节点进行可用性二次筛选...\n", len(candidates))
 	total := len(candidates)
 
 	tasks := make(chan string, total)
@@ -163,7 +162,8 @@ func FilterCandidates(ctx context.Context, candidates []string, apiURL string, c
 	}()
 
 	completed := 0
-	lastPrint := time.Now()
+	var progressParts []string
+	nextPrintPct := 10
 	for r := range results {
 		if ctx.Err() != nil {
 			break
@@ -175,13 +175,16 @@ func FilterCandidates(ctx context.Context, candidates []string, apiURL string, c
 			countryInfo[r.Node] = r.Country
 			exitDetails[r.Node] = r.ExitInfo
 		}
-		now := time.Now()
-		if now.Sub(lastPrint) >= time.Duration(progressInterval)*time.Second || completed == total {
-			fmt.Printf("\n[可用性检测] 进度：%d/%d (%.1f%%) 通过数量：%d", completed, total, float64(completed)/float64(total)*100, len(passed))
-			lastPrint = now
+		pct := completed * 100 / total
+		if pct >= nextPrintPct || completed == total {
+			pctF := float64(completed) / float64(total) * 100
+			progressParts = append(progressParts, fmt.Sprintf("%.1f%% 通过:%d", pctF, len(passed)))
+			nextPrintPct += 10
 		}
 	}
-	fmt.Println()
+	if len(progressParts) > 0 {
+		fmt.Printf("进度：%s\n", strings.Join(progressParts, " → "))
+	}
 	return
 }
 
@@ -194,10 +197,9 @@ func FilterWithRetry(ctx context.Context, candidates []string, apiURL string, co
 		if ctx.Err() != nil {
 			return candidates, make(map[string]string), make(map[string]string), make(map[string]map[string]string)
 		}
-		fmt.Printf("\n[可用性检测] 第 %d 轮检测...\n", attempt)
+		fmt.Printf("第 %d 轮检测...\n", attempt)
 		passed, ipInfo, countryInfo, exitDetails := FilterCandidates(ctx, candidates, apiURL, connectTimeout, readTimeout, innerRetryEnabled, innerRetryMax, innerRetryDelay, workers, progressInterval)
 		if len(passed) > 0 {
-			fmt.Printf("可用性检测通过 %d 个节点\n", len(passed))
 			return passed, ipInfo, countryInfo, exitDetails
 		}
 		if attempt < retryMax {

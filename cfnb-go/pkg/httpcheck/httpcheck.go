@@ -123,7 +123,6 @@ func FilterCandidates(ctx context.Context, candidates []string, timeout, connect
 		return
 	}
 
-	fmt.Printf("\n对 %d 个候选节点进行 HTTP 二次筛选...\n", len(candidates))
 	total := len(candidates)
 
 	tasks := make(chan string, total)
@@ -167,7 +166,8 @@ func FilterCandidates(ctx context.Context, candidates []string, timeout, connect
 	}()
 
 	completed := 0
-	lastPrint := time.Now()
+	var progressParts []string
+	nextPrintPct := 10
 	for r := range results {
 		if ctx.Err() != nil {
 			break
@@ -178,13 +178,16 @@ func FilterCandidates(ctx context.Context, candidates []string, timeout, connect
 			latencyMap[r.Node] = r.Latency
 			jitterMap[r.Node] = r.Jitter
 		}
-		now := time.Now()
-		if now.Sub(lastPrint) >= time.Duration(progressInterval)*time.Second || completed == total {
-			fmt.Printf("\n[HTTP检测] 进度：%d/%d (%.1f%%) 通过数量：%d", completed, total, float64(completed)/float64(total)*100, len(passed))
-			lastPrint = now
+		pct := completed * 100 / total
+		if pct >= nextPrintPct || completed == total {
+			pctF := float64(completed) / float64(total) * 100
+			progressParts = append(progressParts, fmt.Sprintf("%.1f%% 通过:%d", pctF, len(passed)))
+			nextPrintPct += 10
 		}
 	}
-	fmt.Println()
+	if len(progressParts) > 0 {
+		fmt.Printf("进度：%s\n", strings.Join(progressParts, " → "))
+	}
 	return
 }
 
@@ -197,10 +200,9 @@ func FilterWithRetry(ctx context.Context, candidates []string, timeout, connectT
 		if ctx.Err() != nil {
 			return candidates, make(map[string]float64), make(map[string]float64)
 		}
-		fmt.Printf("\n[HTTP检测] 第 %d 轮检测...\n", round)
+		fmt.Printf("第 %d 轮检测...\n", round)
 		passed, latencyMap, jitterMap := FilterCandidates(ctx, candidates, timeout, connectTimeout, method, jitterSamples, workers, progressInterval)
 		if len(passed) > 0 {
-			fmt.Printf("HTTP检测通过 %d 个节点\n", len(passed))
 			return passed, latencyMap, jitterMap
 		}
 		if round < maxRounds {
