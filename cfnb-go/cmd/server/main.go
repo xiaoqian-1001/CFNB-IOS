@@ -732,7 +732,6 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 			status.Running = false
 			cancelPipeline = nil
 			mu.Unlock()
-			addLog("================================")
 			addLog("停止成功")
 			loadResults()
 			return
@@ -755,8 +754,7 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 			if err != nil {
 				addLog("Pipeline completed with errors: " + err.Error())
 			} else {
-				addLog("================================")
-				addLog("Pipeline completed successfully!")
+addLog("Pipeline completed successfully!")
 			}
 			loadResults()
 			return

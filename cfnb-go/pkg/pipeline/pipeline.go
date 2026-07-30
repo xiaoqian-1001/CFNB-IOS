@@ -92,7 +92,6 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 		notify.SendWxPusher(cfg.EnableWxPusher, cfg.WxPusherAppToken, cfg.WxPusherUIDs, cfg.WxPusherAPIURL, cfg.NotifyConnectTimeout, cfg.NotifyTimeout, content, summary)
 	}
 
-	log("======================================")
 	log("【扫描配置】")
 	if cfg.UseGlobalMode {
 		log("模式: 全局最优Top%d | TCP探测:%d次 | 最低成功率:%.0f%%", cfg.GlobalTopN, cfg.TCPProbes, cfg.MinSuccessRate*100)
@@ -107,7 +106,6 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 		map[bool]string{true: cfg.DNSIPRiskMaxLevel, false: "禁用"}[cfg.DNSIPRiskFilterEnabled],
 		boolStr(cfg.FilterIPv6Availability))
 	log("候选上限:%d | 测速文件:%.1fMB | 超时时间:%.0fs", cfg.BandwidthCandidates, cfg.BandwidthSizeMB, cfg.BandwidthTimeout)
-	log("======================================")
 
 	if cfg.FilterCountriesEnabled {
 		log("前置白名单过滤：启用，仅保留：%s", strings.Join(cfg.AllowedCountries, ", "))
@@ -271,7 +269,7 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 	}
 
 	if len(bwResults) == 0 {
-		log("\n带宽测速多次重试仍无有效结果，将使用 TCP 筛选结果作为最终节点。")
+		log("带宽测速多次重试仍无有效结果，将使用 TCP 筛选结果作为最终节点。")
 		notifier(fmt.Sprintf("带宽测速经 %d 轮尝试后仍无有效结果，已降级使用 TCP 排序节点。", cfg.BandwidthRetryMax), "带宽测速全部失败")
 
 		if cfg.UseGlobalMode {
@@ -508,7 +506,7 @@ func prepFilter(nodes []string, cfg *config.Config, log func(string, ...interfac
 		for c := range allowedSet {
 			allowedList = append(allowedList, c)
 		}
-		log("\n国家过滤（测试前）：%d -> %d 个节点（允许国家：%s）", before, len(nodes), strings.Join(allowedList, ", "))
+		log("国家过滤（测试前）：%d -> %d 个节点（允许国家：%s）", before, len(nodes), strings.Join(allowedList, ", "))
 	}
 
 	return nodes
@@ -565,7 +563,7 @@ func selectCandidates(results []tcp.TCPResult, cfg *config.Config, log func(stri
 			candidates = append(candidates, nodes[i].Node)
 		}
 	}
-	log("\n各国家候选池分配：共 %d 个国家，每国最多 %d 个候选，总计 %d 个节点进入候选池。", totalCountries, baseLimit, len(candidates))
+	log("各国家候选池分配：共 %d 个国家，每国最多 %d 个候选，总计 %d 个节点进入候选池。", totalCountries, baseLimit, len(candidates))
 	return
 }
 
@@ -840,7 +838,7 @@ func runDNSUpdate(finalSelected []string, cfg *config.Config, availIPInfo map[st
 	dnsContent = uniqueContent
 	dnsNodes = uniqueNodes
 
-	log("\n准备将以下 %d 个%s 更新到 Cloudflare DNS（记录类型 %s）:", len(dnsContent), map[bool]string{true: "IP", false: "IP:端口"}[recordType == "A"], recordType)
+	log("准备将以下 %d 个%s 更新到 Cloudflare DNS（记录类型 %s）:", len(dnsContent), map[bool]string{true: "IP", false: "IP:端口"}[recordType == "A"], recordType)
 	printDNSNodes(dnsContent, dnsNodes, bwResults, latencyMap, httpLatencyMap, httpJitterMap, log)
 
 	err := cloudflare.BatchUpdateDNS(
