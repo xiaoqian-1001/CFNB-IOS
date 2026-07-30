@@ -126,20 +126,21 @@ textarea:disabled{opacity:0.4;cursor:not-allowed}
 .stat-val.red{color:var(--danger)}
 .stat-lbl{font-size:10px;color:var(--muted2);margin-top:4pt;letter-spacing:-0.1px}
 
-.log-panel{max-height:200pt;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4pt 0;scrollbar-width:thin;scrollbar-color:var(--muted) transparent;background:#0d0d0d;border-radius:8px;margin-top:4pt}
+.log-panel{max-height:200pt;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4pt 0;scrollbar-width:thin;scrollbar-color:var(--muted) transparent;background:#121212;border-radius:8px;margin-top:4pt}
 .log-panel::-webkit-scrollbar{width:3px}
 .log-panel::-webkit-scrollbar-track{background:transparent}
 .log-panel::-webkit-scrollbar-thumb{background:var(--muted);border-radius:3px;min-height:20pt}
-.log-line{font-family:'SF Mono',ui-monospace,monospace;font-size:10px;padding:1pt 0;color:#c8c8c8;line-height:1.4;word-break:break-all}
+.log-line{font-family:'SF Mono',ui-monospace,monospace;font-size:10px;padding:1pt 0;color:#EAEAEA;line-height:1.4;word-break:break-all}
 
-.log-line.info{color:var(--primary)}
-.log-line.success{color:var(--success)}
+.log-line.info{color:#3399FF}
+.log-line.success{color:#39D353}
 .log-line.warn{color:var(--orange)}
-.log-line.error{color:var(--danger)}
-.log-line.sep{color:var(--danger);opacity:1}
-.log-line.section-title{color:var(--text);font-weight:700}
-.log-line.pre-filter{color:#5ac8fa}
-.log-line.scan-cfg{color:#e6b800}
+.log-line.error{color:#FF4444}
+.log-line.sep{color:#FF4444}
+.log-line.section-title{color:#EAEAEA;font-weight:700}
+.log-line.pre-filter{color:#3399FF}
+.log-line.scan-cfg{color:#EAEAEA}
+.log-line.final-title{color:#FF4444;font-weight:700}
 
 .result-list{display:flex;flex-direction:column;gap:10px;padding:4pt 0}
 .result-item{display:flex;flex-direction:column;gap:6px;padding:14px 16px;background:var(--input-bg);border-radius:14px;transition:border-color .2s,transform .2s ease,box-shadow .2s ease;border:0.5px solid transparent;position:relative;overflow:hidden}
@@ -1057,15 +1058,16 @@ function updateLogs(logs) {
     var div = document.createElement('div');
     var className = 'log-line';
     if (/^={2,}/.test(l)) className += ' sep';
-    else if (l.includes('【扫描配置】') || l.includes('【前置筛选】') || l.includes('【第一轮') || l.includes('【第二轮') || l.includes('【第三轮') || /最终优选节点/.test(l)) className += ' section-title';
+    else if (/最终优选节点/.test(l)) className += ' final-title';
+    else if (l.includes('【扫描配置】') || l.includes('【前置筛选】') || l.includes('【第一轮') || l.includes('【第二轮') || l.includes('【第三轮')) className += ' section-title';
     else if (l.indexOf('前置过滤:') === 0 || l.indexOf('端口过滤') === 0 || l.indexOf('国家黑名单过滤') === 0) className += ' pre-filter';
     else if (l.indexOf('模式:') === 0 || l.indexOf('可用性检测:') === 0 || l.indexOf('DNS黑名单:') === 0 || l.indexOf('候选上限:') === 0) className += ' scan-cfg';
     else if (l.includes('ERROR') || l.includes('错误')) className += ' error';
     else if (l.indexOf('启动 CFNB') === 0) className += ' info';
-    else if (l.includes('成功') || l.includes('完成') || l.includes('通过')) className += ' success';
+    else if (l.includes('成功') || l.includes('完成') || l.includes('通过') || l.includes('已保存') || l.includes('已自动推送')) className += ' success';
     else if (l.indexOf('进度') === 0) className += ' info';
     else if (l.includes('失败') || l.includes('跳过')) className += ' warn';
-    else if (l.includes('正在批量') || l.includes('厂商信息')) className += ' info';
+    else if (l.indexOf('第') === 0 || l.includes('正在拉取') || l.includes('正在批量') || l.includes('厂商信息')) className += ' info';
     div.className = className;
     div.textContent = l;
     panel.appendChild(div);
