@@ -136,6 +136,10 @@ textarea:disabled{opacity:0.4;cursor:not-allowed}
 .log-line.success{color:var(--success)}
 .log-line.warn{color:var(--orange)}
 .log-line.error{color:var(--danger)}
+.log-line.sep{color:var(--danger);opacity:0.5}
+.log-line.section-title{color:var(--text);font-weight:700}
+.log-line.pre-filter{color:#5ac8fa}
+.log-line.scan-cfg{color:#ffcc00}
 
 .result-list{display:flex;flex-direction:column;gap:10px;padding:4pt 0}
 .result-item{display:flex;flex-direction:column;gap:6px;padding:14px 16px;background:var(--input-bg);border-radius:14px;transition:border-color .2s,transform .2s ease,box-shadow .2s ease;border:0.5px solid transparent;position:relative;overflow:hidden}
@@ -516,8 +520,8 @@ https://countrymerge.pages.dev/all.txt</textarea>
 </div>
 </div>
 <div id="dnsBlacklistSection" class="field" style="margin-top:6px;display:none">
-<label>黑名单IP（逗号分隔）</label>
-<input type="text" id="cfgDNSBlacklistIPs" placeholder="1.2.3.4, 5.6.7.8">
+<label>屏蔽国家代码（逗号分隔）</label>
+<input type="text" id="cfgDNSBlacklistCountries" placeholder="CN, RU, KP">
 </div>
 <div class="settings-row">
 <div class="sl-label">IP机构信息</div>
@@ -648,7 +652,7 @@ function saveConfig() {
     sourceURLs: S('cfgSources').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
     directIPs: S('cfgDirectIPs').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
     dnsBlacklist: S('cfgDNSBlacklist').checked,
-    dnsBlacklistIPs: S('cfgDNSBlacklistIPs').value,
+    dnsBlacklistCountries: S('cfgDNSBlacklistCountries').value,
     riskLevel: S('cfgRiskLevel').value,
     ipv6FilterEnabled: S('cfgIPv6Filter').checked
   };
@@ -697,7 +701,7 @@ if (saved.dnsBlacklist !== undefined) {
       S('cfgDNSBlacklist').checked = saved.dnsBlacklist;
       S('dnsBlacklistSection').style.display = saved.dnsBlacklist ? 'block' : 'none';
     }
-    if (saved.dnsBlacklistIPs) S('cfgDNSBlacklistIPs').value = saved.dnsBlacklistIPs;
+    if (saved.dnsBlacklistCountries) S('cfgDNSBlacklistCountries').value = saved.dnsBlacklistCountries;
     if (saved.riskLevel) S('cfgRiskLevel').value = saved.riskLevel;
     if (saved.ipv6FilterEnabled !== undefined) S('cfgIPv6Filter').checked = saved.ipv6FilterEnabled;
     if (saved.mode) {
@@ -851,10 +855,7 @@ function pasteDirectIPs() {
 
 function toggleDNSBlacklist() {
   var enabled = S('cfgDNSBlacklist').checked;
-  S('riskLevelRow').style.opacity = enabled ? '1' : '0.4';
-  S('cfgRiskLevel').disabled = !enabled;
   S('dnsBlacklistSection').style.display = enabled ? 'block' : 'none';
-  if (!enabled) S('cfgRiskLevel').value = '关闭';
   saveConfig();
 }
 
@@ -890,7 +891,7 @@ function resetConfig() {
   S('cfgPortFilter').checked = true;
   S('cfgBlockCountry').checked = true;
   S('cfgDNSBlacklist').checked = false;
-  S('cfgDNSBlacklistIPs').value = '';
+  S('cfgDNSBlacklistCountries').value = '';
   S('cfgIPv6Filter').checked = false;
   S('cfgRiskLevel').value = '关闭';
   S('cfgUseDirectIP').checked = false;
@@ -903,7 +904,7 @@ function resetConfig() {
 }
 
 function setControlsDisabled(disabled) {
-  var ids = ['cfgBandwidthSize','cfgCandidates','cfgGlobalTopN','cfgPerCountryTopN','cfgTCPProbes','cfgTCPWorkers','cfgTCPTimeout','cfgBWWorkers','cfgBWTimeout','cfgMinSuccessRate','cfgPorts','cfgBlockedCountries','cfgSources','cfgDirectIPs','cfgUseDirectIP','cfgAvailability','cfgHTTPTest','cfgPortFilter','cfgBlockCountry','cfgDNSBlacklist','cfgDNSBlacklistIPs','cfgRiskLevel','cfgIPv6Filter'];
+  var ids = ['cfgBandwidthSize','cfgCandidates','cfgGlobalTopN','cfgPerCountryTopN','cfgTCPProbes','cfgTCPWorkers','cfgTCPTimeout','cfgBWWorkers','cfgBWTimeout','cfgMinSuccessRate','cfgPorts','cfgBlockedCountries','cfgSources','cfgDirectIPs','cfgUseDirectIP','cfgAvailability','cfgHTTPTest','cfgPortFilter','cfgBlockCountry','cfgDNSBlacklist','cfgDNSBlacklistCountries','cfgRiskLevel','cfgIPv6Filter'];
   ids.forEach(function(id) {
     var el = S(id);
     if (el) el.disabled = disabled;
@@ -944,7 +945,7 @@ function startPipeline() {
     sourceURLs: S('cfgSources').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
     directIPs: S('cfgDirectIPs').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
     dnsBlacklistFilter: S('cfgDNSBlacklist').checked,
-    dnsBlacklistIPs: S('cfgDNSBlacklistIPs').value.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s; }),
+    dnsBlacklistCountries: S('cfgDNSBlacklistCountries').value.split(',').map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s; }),
     dnsRiskMaxLevel: S('cfgRiskLevel').value,
     ipv6FilterEnabled: S('cfgIPv6Filter').checked
   };
@@ -1055,10 +1056,15 @@ function updateLogs(logs) {
     var l = logs[i];
     var div = document.createElement('div');
     div.className = 'log-line';
-    if (l.includes('ERROR') || l.includes('错误')) div.className += ' error';
+    if (l.startsWith('~')) div.className += ' sep';
+    else if (l.includes('【 前置过滤 】')) div.className += ' section-title';
+    else if (l.includes('【 扫描配置 】')) div.className += ' section-title';
+    else if (l.indexOf('端口=') === 0) div.className += ' pre-filter';
+    else if (l.indexOf('模式：') === 0 || l.indexOf('可用性检测：') === 0 || l.indexOf('DNS黑名单过滤：') === 0 || l.indexOf('候选上限：') === 0) div.className += ' scan-cfg';
+    else if (l.includes('ERROR') || l.includes('错误')) div.className += ' error';
     else if (l.includes('带宽测速') || (l.includes('带宽') && l.includes('进度'))) div.className += ' success';
     else if (l.includes('HTTP')) div.className += ' info';
-    else if (l.includes('可用性') || l.includes('DNS黑名单') || l.includes('IPv6过滤')) div.className += ' info';
+    else if (l.includes('可用性') || l.includes('DNS黑名单') || l.includes('IPv6')) div.className += ' info';
     else if (l.includes('TCP') || l.includes('tcp')) div.className += ' error';
     else if (l.includes('成功') || l.includes('完成') || l.includes('通过')) div.className += ' success';
     else if (l.includes('进度') || l.includes('Phase') || l.includes('开始')) div.className += ' info';

@@ -254,7 +254,7 @@ type RunConfig struct {
 	CFEnabled                *bool    `json:"cfEnabled"`
 	GitSyncEnabled           *bool    `json:"gitSyncEnabled"`
 	DNSBlacklistFilter       *bool    `json:"dnsBlacklistFilter"`
-	DNSBlacklistIPs          []string `json:"dnsBlacklistIPs"`
+	DNSBlacklistCountries    []string `json:"dnsBlacklistCountries"`
 	DNSRiskMaxLevel          string   `json:"dnsRiskMaxLevel"`
 	IPv6FilterEnabled        *bool    `json:"ipv6FilterEnabled"`
 }
@@ -579,9 +579,17 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 		broadcast()
 	}()
 
-	addLog("开始 CFNB 管道...")
-	addLog("================================")
-	addLog(fmt.Sprintf("配置: mode=%s globalTopN=%d perCountryTopN=%d", rc.Mode, rc.GlobalTopN, rc.PerCountryTopN))
+	addLog("小钱CloudFlare优选IP-LootBox系统 | 正在启动优选管道")
+	addLog("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+	addLog("【 前置过滤 】")
+	portStrs := make([]string, len(rc.PreFilterPorts))
+	for i, p := range rc.PreFilterPorts {
+		portStrs[i] = fmt.Sprintf("%d", p)
+	}
+	addLog(fmt.Sprintf("端口=【%s】（%s） | 黑名单国家=【%s】（%s）",
+		strings.Join(portStrs, ","), boolPtrVal(rc.PreFilterPortEnabled),
+		strings.Join(rc.PreFilterBlockedCountries, ","), boolPtrVal(rc.PreFilterBlockedEnabled)))
+	addLog("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 	updateProgress("Phase 1/6: 获取数据源")
 
 	cfg, err := config.Load("config.json")
@@ -674,8 +682,8 @@ func runPipeline(ctx context.Context, rc RunConfig, runID int64) {
 	if rc.DNSBlacklistFilter != nil {
 		cfg.DNSIPRiskFilterEnabled = *rc.DNSBlacklistFilter
 	}
-	if len(rc.DNSBlacklistIPs) > 0 {
-		cfg.DNSBlacklistIPs = rc.DNSBlacklistIPs
+	if len(rc.DNSBlacklistCountries) > 0 {
+		cfg.DNSBlacklistCountries = rc.DNSBlacklistCountries
 	}
 	if rc.DNSRiskMaxLevel != "" {
 		if rc.DNSRiskMaxLevel == "关闭" {

@@ -81,19 +81,21 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 		notify.SendWxPusher(cfg.EnableWxPusher, cfg.WxPusherAppToken, cfg.WxPusherUIDs, cfg.WxPusherAPIURL, cfg.NotifyConnectTimeout, cfg.NotifyTimeout, content, summary)
 	}
 
-	modeStr := fmt.Sprintf("全局最优%d个", cfg.GlobalTopN)
-	if !cfg.UseGlobalMode {
-		modeStr = fmt.Sprintf("每个国家最优%d个", cfg.PerCountryTopN)
+	log("【 扫描配置 】")
+	if cfg.UseGlobalMode {
+		log("模式：全局最优TOP%d | TCP探测：%d次 | 最低成功率：%.0f%%", cfg.GlobalTopN, cfg.TCPProbes, cfg.MinSuccessRate*100)
+	} else {
+		log("模式：每个国家最优TOP%d | TCP探测：%d次 | 最低成功率：%.0f%%", cfg.PerCountryTopN, cfg.TCPProbes, cfg.MinSuccessRate*100)
 	}
-	log("模式: %s | TCP探测: %d次 | 最低成功率: %.0f%%", modeStr, cfg.TCPProbes, cfg.MinSuccessRate*100)
-	log("可用性: %s | HTTP检测: %s | 屏蔽国家: %s ",
+	log("可用性检测：%s | HTTP检测：%s | 国家黑名单：%s ",
 		boolStr(cfg.TestAvailability), boolStr(cfg.HTTPTestEnabled),
 		boolStr(cfg.PreFilterBlockedEnabled))
-	log("DNS黑名单: %s | 风险等级: %s | IPv6过滤: %s",
+	log("DNS黑名单过滤：%s | 风险等级过滤：%s | IPV6落地过滤：%s",
 		boolStr(cfg.DNSIPRiskFilterEnabled),
 		map[bool]string{true: cfg.DNSIPRiskMaxLevel, false: "禁用"}[cfg.DNSIPRiskFilterEnabled],
 		boolStr(cfg.FilterIPv6Availability))
-	log("候选数: %d | 文件大小: %.1fMB | 超时: %.0fs", cfg.BandwidthCandidates, cfg.BandwidthSizeMB, cfg.BandwidthTimeout)
+	log("候选上限：%d | 测速文件：%.1fMB | 测速超时：%.0fs", cfg.BandwidthCandidates, cfg.BandwidthSizeMB, cfg.BandwidthTimeout)
+	log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
 	if cfg.FilterCountriesEnabled {
 		log("前置白名单过滤：启用，仅保留：%s", strings.Join(cfg.AllowedCountries, ", "))
@@ -669,10 +671,11 @@ func runDNSUpdate(finalSelected []string, cfg *config.Config, availIPInfo map[st
 				continue
 			}
 
-			if len(cfg.DNSBlacklistIPs) > 0 {
+			if len(cfg.DNSBlacklistCountries) > 0 {
 				blocked := false
-				for _, bip := range cfg.DNSBlacklistIPs {
-					if bip == pureIP {
+				for _, bc := range cfg.DNSBlacklistCountries {
+					country := strings.ToUpper(strings.SplitN(strings.SplitN(node, "#", 2)[1], " ", 2)[0])
+					if bc == country {
 						blocked = true
 						break
 					}
