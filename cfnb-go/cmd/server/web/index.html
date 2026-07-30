@@ -1067,6 +1067,7 @@ function updateLogs(logs) {
     else if (l.includes('失败') || l.includes('跳过')) className += ' warn';
     else if (l.includes('正在批量') || l.includes('厂商信息')) className += ' info';
     div.className = className;
+    div.textContent = l;
     panel.appendChild(div);
   }
   logCache = logs.slice();
