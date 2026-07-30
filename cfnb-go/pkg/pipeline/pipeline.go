@@ -92,6 +92,7 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 		notify.SendWxPusher(cfg.EnableWxPusher, cfg.WxPusherAppToken, cfg.WxPusherUIDs, cfg.WxPusherAPIURL, cfg.NotifyConnectTimeout, cfg.NotifyTimeout, content, summary)
 	}
 
+	log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 	log("【扫描配置】")
 	if cfg.UseGlobalMode {
 		log("模式: 全局最优Top%d | TCP探测:%d次 | 最低成功率:%.0f%%", cfg.GlobalTopN, cfg.TCPProbes, cfg.MinSuccessRate*100)
