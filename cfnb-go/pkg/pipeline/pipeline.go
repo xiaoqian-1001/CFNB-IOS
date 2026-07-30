@@ -86,7 +86,11 @@ func Run(ctx context.Context, cfg *config.Config, output io.Writer) (*Result, er
 		modeStr = fmt.Sprintf("每个国家最优%d个", cfg.PerCountryTopN)
 	}
 	log("模式: %s | TCP探测: %d次 | 最低成功率: %.0f%%", modeStr, cfg.TCPProbes, cfg.MinSuccessRate*100)
-	log("可用性: %s | HTTP检测: %s | DNS黑名单: %s | 风险等级: %s", boolStr(cfg.TestAvailability), boolStr(cfg.HTTPTestEnabled), boolStr(cfg.FilterBlockedCountriesEnabled), map[bool]string{true: cfg.DNSIPRiskMaxLevel, false: "禁用"}[cfg.DNSIPRiskFilterEnabled])
+	log("可用性: %s | HTTP检测: %s | DNS黑名单: %s | 风险等级: %s | IPv6过滤: %s",
+		boolStr(cfg.TestAvailability), boolStr(cfg.HTTPTestEnabled),
+		boolStr(cfg.DNSIPRiskFilterEnabled),
+		map[bool]string{true: cfg.DNSIPRiskMaxLevel, false: "禁用"}[cfg.DNSIPRiskFilterEnabled],
+		boolStr(cfg.FilterIPv6Availability))
 	log("候选数: %d | 文件大小: %.1fMB | 超时: %.0fs", cfg.BandwidthCandidates, cfg.BandwidthSizeMB, cfg.BandwidthTimeout)
 
 	if cfg.FilterCountriesEnabled {
@@ -402,6 +406,27 @@ func prepFilter(nodes []string, cfg *config.Config, log func(string, ...interfac
 			ports = append(ports, fmt.Sprintf("%d", p))
 		}
 		log("前置端口过滤（仅保留端口 %s）：%d -> %d 个节点", strings.Join(ports, ", "), before, len(nodes))
+		if len(nodes) == 0 {
+			return nil
+		}
+	}
+
+	if cfg.FilterIPv6Availability {
+		before := len(nodes)
+		filtered := make([]string, 0)
+		for _, n := range nodes {
+			ipport := strings.SplitN(n, "#", 2)[0]
+			host, _, err := net.SplitHostPort(ipport)
+			if err != nil {
+				continue
+			}
+			ip := net.ParseIP(host)
+			if ip == nil || ip.To4() != nil {
+				filtered = append(filtered, n)
+			}
+		}
+		nodes = filtered
+		log("前置IPv6过滤：%d -> %d 个节点", before, len(nodes))
 		if len(nodes) == 0 {
 			return nil
 		}
